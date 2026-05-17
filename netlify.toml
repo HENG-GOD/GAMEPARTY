@@ -2,19 +2,52 @@
   command = "npm run build"
   publish = "dist"
 
+[functions]
+  directory = "netlify/functions"
+
 [build.environment]
   NODE_VERSION = "18"
   # CDN Configuration for HENG36
-  VITE_CDN_DOMAIN_HENG36 = "img.heng36.party"
+  VITE_CDN_DOMAIN_HENG36 = "cdn.heng36.party"
   VITE_STORAGE_BUCKET_HENG36 = "game-images"
   # CDN Configuration for MAX56
-  VITE_CDN_DOMAIN_MAX56 = "img.max56.party"
+  VITE_CDN_DOMAIN_MAX56 = "cdn.max56.party"
   VITE_STORAGE_BUCKET_MAX56 = "game-images"
   # CDN Configuration for JEED24
-  VITE_CDN_DOMAIN_JEED24 = "img.jeed24.party"
+  VITE_CDN_DOMAIN_JEED24 = "cdn.jeed24.party"
   VITE_STORAGE_BUCKET_JEED24 = "game-images"
+  # CDN Configuration for KAMO99
+  VITE_CDN_DOMAIN_KAMO99 = "cdn.kamo99.party"
+  VITE_STORAGE_BUCKET_KAMO99 = "game-images"
+  # CDN Configuration for KIKI49
+  VITE_CDN_DOMAIN_KIKI49 = "cdn.kiki49.party"
+  VITE_STORAGE_BUCKET_KIKI49 = "game-images"
+  # CDN Configuration for MAB96
+  VITE_CDN_DOMAIN_MAB96 = "cdn.mab96.party"
+  VITE_STORAGE_BUCKET_MAB96 = "game-images"
+  # CDN Configuration for ABM96
+  VITE_CDN_DOMAIN_ABM96 = "cdn.abm96.party"
+  VITE_STORAGE_BUCKET_ABM96 = "game-images"
+  # CDN Configuration for AIGAMING88
+  VITE_CDN_DOMAIN_AIGAMING88 = "cdn.aigaming88.party"
+  VITE_STORAGE_BUCKET_AIGAMING88 = "game-images"
 
 # SPA fallback - redirect all routes to index.html
+[[redirects]]
+  from = "/api/telegram/send-party-link"
+  to = "/.netlify/functions/send-telegram-party-link"
+  status = 200
+
+[[redirects]]
+  from = "/api/telegram/send-winners"
+  to = "/.netlify/functions/send-telegram-winners"
+  status = 200
+
+[[redirects]]
+  from = "/api/telegram/receive-users"
+  to = "/.netlify/functions/receive-telegram-users"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
