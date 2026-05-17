@@ -51,11 +51,11 @@ Both `theme-resolver.ts` and `ThemeContext.tsx` contain their own copies of this
 
 - Entry: `src/main.tsx` → `BrowserRouter` → `src/App.tsx` (defines routes, wraps in `ThemeProvider`).
 - Routes (in `App.tsx`):
-  - `/?id=<userId>` is the **public player gate**; redirects to `/play/:id`. `/play/:id`, `/games/play/:id`, `/games/:id/play`, `/host/:id` all render `GamePlay`.
+  - `/?id=<userId>` is the **public player gate**; redirects to `/play/:id`. `/play/:id`, `/games/play/:id`, `/games/:id/play` all render `GamePlay`.
   - `/admin/answers/:gameId` is public (no auth) by design.
   - `/login`, `/theme-test`, `/test-checkin-security` are public.
   - Everything else (`/home`, `/games`, `/games/:id`, `/creategame`, `/upload-users-extra`, `/image-settings`) is wrapped in `<RequireAuth><AdminLayout/></RequireAuth>` — auth state is read live via `onAuthStateChange` from `firebase-auth`.
-- `src/pages/games/GamePlay.tsx` is the dispatcher that picks one of the 13 game components in `src/components/*Game.tsx` based on `GameData.type` (defined in `src/types/game.ts`). When adding a new game type: add the union literal in `game.ts`, the data shape on `GameData`, a component in `src/components/`, and a case in `GamePlay.tsx`.
+- `src/pages/games/GamePlay.tsx` is the dispatcher that picks one of the 12 game components in `src/components/*Game.tsx` based on `GameData.type` (defined in `src/types/game.ts`). When adding a new game type: add the union literal in `game.ts`, the data shape on `GameData`, a component in `src/components/`, and a case in `GamePlay.tsx`.
 
 ## Services layer (`src/services/`)
 

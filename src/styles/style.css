@@ -27,6 +27,9 @@ button, input, select, textarea{
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
 
 /* Responsive design for krathong container */
 @media (min-width: 768px) {
@@ -37,98 +40,22 @@ button, input, select, textarea{
 }
 
 @media (min-width: 1024px) {
-  .krathong-overlay-container {
+.krathong-overlay-container {
     max-width: 1000px !important;
     height: 500px !important;
   }
 }
 
 @media (min-width: 1200px) {
-  .krathong-overlay-container {
+.krathong-overlay-container {
     max-width: 1100px !important;
     height: 550px !important;
   }
 }
 
-/* ===== BINGO GAME STYLES ===== */
-.bingo-game {
-  padding: 0;
-  background: transparent;
-  border: none;
-  margin: 0;
-  position: relative;
-}
-
-.bingo-players {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
-  padding: 24px;
-  border-radius: 16px;
-  border: 2px solid rgba(16, 185, 129, 0.2);
-  margin-bottom: 24px;
-  box-shadow: 
-    0 8px 32px rgba(16, 185, 129, 0.15),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  position: relative;
-  overflow: hidden;
-}
-
-.bingo-players::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #10B981, #34D399, #059669);
-  background-size: 200% 100%;
-  animation: gradientShift 3s ease-in-out infinite;
-}
-
-/* HENG36 Theme */
-.theme-heng36 .bingo-players {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(52, 211, 153, 0.05) 100%);
-  border: 2px solid rgba(16, 185, 129, 0.3);
-  box-shadow: 
-    0 8px 32px rgba(16, 185, 129, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.theme-heng36 .bingo-players::before {
-  background: linear-gradient(90deg, #10B981, #34D399, #059669);
-}
-
-/* MAX56 Theme */
-.theme-max56 .bingo-players {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
-  border: 2px solid rgba(220, 38, 38, 0.3);
-  box-shadow: 
-    0 8px 32px rgba(220, 38, 38, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.theme-max56 .bingo-players::before {
-  background: linear-gradient(90deg, #DC2626, #EF4444, #B91C1C);
-}
-
 @keyframes gradientShift {
-  0%, 100% { background-position: 0% 50%; }
+0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
-}
-
-.bingo-players h4 {
-  color: #1e293b;
-  font-size: 20px;
-  font-weight: 800;
-  margin-bottom: 20px;
-  text-align: center;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  letter-spacing: 0.5px;
-  position: relative;
-  z-index: 1;
 }
 
 .game-settings-info {
@@ -340,23 +267,6 @@ button, input, select, textarea{
   box-shadow: 0 2px 8px rgba(249, 115, 22, 0.4);
 }
 
-.bingo-actions {
-  text-align: center;
-}
-
-.bingo-actions .btn {
-  padding: 12px 24px;
-  font-size: 16px;
-  font-weight: 700;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.bingo-actions .btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
 .player-controls {
   display: flex;
   flex-direction: column;
@@ -405,24 +315,6 @@ button, input, select, textarea{
 .text-warning {
   color: #d97706;
   font-weight: 600;
-}
-
-/* Type badge for BINGO */
-.type-bingo {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: white;
-}
-
-/* ===== BINGO GAME STYLES ===== */
-
-/* Game Waiting Status */
-.game-waiting-status {
-  text-align: center;
-  padding: 40px 20px;
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border-radius: 16px;
-  margin-bottom: 24px;
-  border: 2px solid #f59e0b;
 }
 
 .waiting-icon {
@@ -485,7 +377,7 @@ button, input, select, textarea{
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); }
+0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
 }
 
@@ -592,9 +484,8 @@ button, input, select, textarea{
 }
 
 
-
 @keyframes bounce {
-  0%, 100% { transform: translateY(0); }
+0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
 }
 
@@ -696,7 +587,6 @@ button, input, select, textarea{
 }
 
 
-
 .drawn-number:hover {
   transform: scale(1.1);
   box-shadow: 
@@ -755,7 +645,7 @@ button, input, select, textarea{
 }
 
 @media (max-width: 480px) {
-  /* ✅ เพิ่ม sticky สำหรับส่วนแสดงตัวเลขสุ่มบนมือถือหน้าจอเล็ก */
+/* ✅ เพิ่ม sticky สำหรับส่วนแสดงตัวเลขสุ่มบนมือถือหน้าจอเล็ก */
   .current-number-display {
     padding: 12px;
     border-radius: 0 0 16px 16px;
@@ -805,111 +695,6 @@ button, input, select, textarea{
     font-size: 11px;
     width: 36px;
     height: 36px;
-  }
-}
-
-/* ===== BINGO CARDS STYLES ===== */
-.bingo-cards-section {
-  margin-top: 24px;
-  padding: 24px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
-  border-radius: 16px;
-  border: 2px solid rgba(59, 130, 246, 0.1);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.08),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  position: relative;
-  overflow: hidden;
-}
-
-.bingo-cards-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b);
-  background-size: 200% 100%;
-  animation: gradientShift 3s ease-in-out infinite;
-}
-
-.bingo-cards-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 24px;
-  position: relative;
-  z-index: 1;
-}
-
-.bingo-cards-header h4 {
-  color: #1e293b;
-  font-size: 20px;
-  font-weight: 800;
-  margin: 0;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  letter-spacing: 0.5px;
-  flex: 0 0 80%;
-}
-
-.bingo-cards-header button {
-  flex: 0 0 20%;
-  margin-left: auto;
-  white-space: nowrap;
-  min-width: fit-content;
-}
-
-/* ปรับขนาดสำหรับหน้าจอมือถือ */
-@media (max-width: 768px) {
-  .bingo-cards-header {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-  
-  .bingo-cards-header h4 {
-    font-size: 18px;
-    flex: none;
-    text-align: center;
-  }
-  
-  .bingo-cards-header button {
-    flex: none;
-    margin-left: 0;
-    width: 100%;
-    padding: 10px 16px;
-    font-size: 14px;
-    white-space: normal;
-    line-height: 1.3;
-  }
-}
-
-@media (max-width: 480px) {
-  .bingo-cards-header h4 {
-    font-size: 16px;
-  }
-  
-  .bingo-cards-header button {
-    padding: 12px 16px;
-    font-size: 13px;
-  }
-  
-  .bingo-cards-grid {
-    grid-template-columns: 1fr;
-    max-width: 320px;
-    margin: 0 auto;
-  }
-  
-  .bingo-card-grid {
-    max-width: 390px;
-  }
-  
-  .bingo-cell {
-    font-size: 16px;
-    min-height: 39px;
-    padding: 6px 2px;
   }
 }
 
@@ -965,407 +750,6 @@ button, input, select, textarea{
     0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
-.bingo-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 350px));
-  gap: 16px;
-  justify-content: center;
-  max-width: 100%;
-}
-
-.bingo-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.95) 100%);
-  border: 2px solid rgba(59, 130, 246, 0.15);
-  border-radius: 20px;
-  padding: 12px;
-  box-shadow: 
-    0 12px 40px rgba(0, 0, 0, 0.1),
-    0 4px 16px rgba(59, 130, 246, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(12px);
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.bingo-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b);
-  background-size: 200% 100%;
-  animation: gradientShift 4s ease-in-out infinite;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-}
-
-/* HENG36 Theme - Card */
-.theme-heng36 .bingo-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 253, 244, 0.95) 100%);
-  border: 2px solid rgba(16, 185, 129, 0.2);
-  box-shadow: 
-    0 12px 40px rgba(16, 185, 129, 0.15),
-    0 4px 16px rgba(16, 185, 129, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-.theme-heng36 .bingo-card::before {
-  background: linear-gradient(90deg, #10B981, #34D399, #059669, #8B5CF6);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
-}
-
-/* MAX56 Theme - Card */
-.theme-max56 .bingo-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 242, 242, 0.95) 100%);
-  border: 2px solid rgba(220, 38, 38, 0.2);
-  box-shadow: 
-    0 12px 40px rgba(220, 38, 38, 0.15),
-    0 4px 16px rgba(220, 38, 38, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-.theme-max56 .bingo-card::before {
-  background: linear-gradient(90deg, #DC2626, #EF4444, #F97316, #EA580C);
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
-}
-
-/* JEED24 Theme - Card */
-.theme-jeed24 .bingo-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 248, 240, 0.95) 100%);
-  border: 2px solid rgba(204, 85, 0, 0.2);
-  box-shadow: 
-    0 12px 40px rgba(204, 85, 0, 0.15),
-    0 4px 16px rgba(204, 85, 0, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-.theme-jeed24 .bingo-card::before {
-  background: linear-gradient(90deg, #CC5500, #FF7F00, #FF6347, #FF4500);
-  box-shadow: 0 2px 8px rgba(204, 85, 0, 0.4);
-}
-
-/* .bingo-card:hover {
-  ลบ hover effect
-} */
-
-.bingo-card-footer {
-  margin-top: 16px;
-  text-align: center;
-  padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
-}
-
-/* Theme-specific footer borders */
-.theme-heng36 .bingo-card-footer {
-  border-top: 1px solid rgba(16, 185, 129, 0.2);
-}
-
-.theme-max56 .bingo-card-footer {
-  border-top: 1px solid rgba(220, 38, 38, 0.2);
-}
-
-.theme-jeed24 .bingo-card-footer {
-  border-top: 1px solid rgba(204, 85, 0, 0.2);
-}
-
-.btn-bingo {
-  padding: 12px 24px;
-  font-size: 18px;
-  font-weight: 800;
-  border-radius: 8px;
-  border: none;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  min-width: 120px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-
-.btn-bingo.btn-warning {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: white;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-}
-
-.btn-bingo.btn-warning:hover {
-  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
-}
-
-.btn-bingo.btn-success {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
-
-.btn-bingo.btn-success:disabled {
-  opacity: 0.8;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.bingo-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid #e2e8f0;
-}
-
-.bingo-card-title {
-  font-weight: 800;
-  font-size: 16px;
-  color: #1e293b;
-  letter-spacing: 1px;
-  flex: 1;
-}
-
-.bingo-card-id {
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 600;
-  background: #f1f5f9;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-left: auto;
-}
-
-.bingo-card-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 4px;
-  background: #1e293b;
-  padding: 8px;
-  max-width: 420px;
-  margin: 0 auto;
-  border-radius: 16px;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* Theme-specific grid backgrounds */
-.theme-heng36 .bingo-card-grid {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  box-shadow: 
-    inset 0 2px 8px rgba(0, 0, 0, 0.3),
-    0 0 0 2px rgba(16, 185, 129, 0.2);
-}
-
-.theme-max56 .bingo-card-grid {
-  background: linear-gradient(135deg, #1f1f1f 0%, #0f172a 100%);
-  box-shadow: 
-    inset 0 2px 8px rgba(0, 0, 0, 0.3),
-    0 0 0 2px rgba(220, 38, 38, 0.2);
-}
-
-.theme-jeed24 .bingo-card-grid {
-  background: linear-gradient(135deg, #1a1a1a 0%, #0f172a 100%);
-  box-shadow: 
-    inset 0 2px 8px rgba(0, 0, 0, 0.3),
-    0 0 0 2px rgba(204, 85, 0, 0.2);
-}
-
-.bingo-header {
-  display: contents;
-}
-
-.bingo-cell {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 9px 3px;
-  text-align: center;
-  font-weight: 700;
-  font-size: 18px;
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-/* เพิ่ม background image ตามธีม - จางๆ */
-.bingo-cell::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  opacity: 0.15;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Theme-specific background images */
-.theme-heng36 .bingo-cell::before {
-  background-image: url('/image/heng36.png');
-}
-
-.theme-jeed24 .bingo-cell::before {
-  background-image: url('/image/jeed24.png');
-}
-
-.theme-max56 .bingo-cell::before {
-  background-image: url('/image/max56.png');
-}
-
-/* ไม่แสดง background image สำหรับ header cell และ free cell */
-.bingo-header-cell::before,
-.bingo-free::before {
-  display: none;
-}
-
-/* ให้ตัวเลขอยู่เหนือ background image */
-.bingo-cell > * {
-  position: relative;
-  z-index: 1;
-}
-
-.bingo-header-cell {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  color: white;
-  font-size: 24px;
-  font-weight: 800;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* Theme-specific header cells */
-.theme-heng36 .bingo-header-cell {
-  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
-}
-
-.theme-max56 .bingo-header-cell {
-  background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
-  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.4);
-}
-
-.theme-jeed24 .bingo-header-cell {
-  background: linear-gradient(135deg, #CC5500 0%, #AA4400 100%);
-  box-shadow: 0 2px 6px rgba(204, 85, 0, 0.4);
-}
-
-.bingo-free {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: white;
-  font-weight: 800;
-  font-size: 18px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
-}
-
-/* Theme-specific free cells */
-.theme-heng36 .bingo-free {
-  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
-  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4);
-}
-
-.theme-max56 .bingo-free {
-  background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
-  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.4);
-}
-
-.theme-jeed24 .bingo-free {
-  background: linear-gradient(135deg, #FF6347 0%, #DC3525 100%);
-  box-shadow: 0 2px 6px rgba(255, 99, 71, 0.4);
-}
-
-.bingo-cell:hover {
-  background: #f0f9ff;
-  border-color: #3b82f6;
-  transform: scale(1.05);
-}
-
-.bingo-cell.bingo-clickable {
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.bingo-cell.bingo-clickable:hover {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border-color: #f59e0b;
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-}
-
-/* Theme-specific clickable hover */
-.theme-heng36 .bingo-cell.bingo-clickable:hover {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  border-color: #10B981;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
-
-.theme-max56 .bingo-cell.bingo-clickable:hover {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  border-color: #DC2626;
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-}
-
-.theme-jeed24 .bingo-cell.bingo-clickable:hover {
-  background: linear-gradient(135deg, #ffe5cc 0%, #ffcc99 100%);
-  border-color: #CC5500;
-  box-shadow: 0 4px 12px rgba(204, 85, 0, 0.3);
-}
-
-.bingo-cell.bingo-checked {
-  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-  border-color: #22c55e;
-  color: #166534;
-  font-weight: 700;
-  position: relative;
-  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
-}
-
-/* Theme-specific checked cells */
-.theme-heng36 .bingo-cell.bingo-checked {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  border-color: #10B981;
-  color: #047857;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
-}
-
-.theme-max56 .bingo-cell.bingo-checked {
-  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
-  border-color: #DC2626;
-  color: #991b1b;
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
-}
-
-.theme-jeed24 .bingo-cell.bingo-checked {
-  background: linear-gradient(135deg, #ffcc99 0%, #ffb366 100%);
-  border-color: #CC5500;
-  color: #8b3500;
-  box-shadow: 0 2px 8px rgba(204, 85, 0, 0.4);
-}
-
-.bingo-cell.bingo-checked::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 30px;
-  color: #22c55e;
-  font-weight: 900;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
 /* Winner Display */
 .winner-display {
   text-align: center;
@@ -1381,7 +765,7 @@ button, input, select, textarea{
 }
 
 @keyframes winnerPulse {
-  0%, 100% { transform: scale(1); }
+0%, 100% { transform: scale(1); }
   50% { transform: scale(1.02); }
 }
 
@@ -1648,7 +1032,7 @@ button, input, select, textarea{
 }
 
 @media (max-width: 480px) {
-  .winner-code-container {
+.winner-code-container {
     padding: 10px;
     margin-top: 10px;
   }
@@ -1711,8 +1095,19 @@ button, input, select, textarea{
   box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
 }
 
+.go-to-site-button.jeed24-theme {
+  background: linear-gradient(135deg, #CC5500 0%, #FF7F00 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 20px rgba(204, 85, 0, 0.4);
+}
+
+.go-to-site-button.jeed24-theme:hover {
+  background: linear-gradient(135deg, #AA4400 0%, #CC5500 100%);
+  box-shadow: 0 8px 25px rgba(204, 85, 0, 0.5);
+}
+
 @media (max-width: 768px) {
-  .go-to-site-button {
+.go-to-site-button {
     padding: 10px 20px;
     font-size: 14px;
     max-width: 250px;
@@ -1720,7 +1115,7 @@ button, input, select, textarea{
 }
 
 @media (max-width: 480px) {
-  .go-to-site-button {
+.go-to-site-button {
     padding: 10px 16px;
     font-size: 13px;
     max-width: 200px;
@@ -1825,49 +1220,6 @@ button, input, select, textarea{
 
 .notification-popup:not(.heng-theme) .notification-btn {
   color: #ffffff !important;
-}
-
-
-/* BINGO Card Footer */
-.bingo-card-footer {
-  padding: 12px;
-  text-align: center;
-  border-top: 1px solid #e5e7eb;
-}
-
-.btn-bingo {
-  width: 100%;
-  padding: 12px 24px;
-  font-size: 18px;
-  font-weight: 700;
-  border-radius: 8px;
-  border: 2px solid;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.btn-bingo.btn-warning {
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-  color: #92400e;
-  border-color: #f59e0b;
-}
-
-.btn-bingo.btn-warning:hover {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-}
-
-.btn-bingo.btn-success {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  border-color: #059669;
-}
-
-.btn-bingo:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
 }
 
 /* Room Info Display */
@@ -1988,7 +1340,7 @@ button, input, select, textarea{
 }
 
 @media (max-width: 480px) {
-  .room-info-display {
+.room-info-display {
     margin-bottom: 16px;
   }
   
@@ -2125,7 +1477,7 @@ button, input, select, textarea{
 }
 
 @supports (scrollbar-color: auto) {
-  .announce-users-list {
+.announce-users-list {
     scrollbar-color: #cbd5e1 #f1f5f9;
     scrollbar-width: thin;
   }
@@ -2246,7 +1598,7 @@ button, input, select, textarea{
 }
 
 @keyframes pulse {
-  0%, 100% {
+0%, 100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -2257,7 +1609,7 @@ button, input, select, textarea{
 }
 
 @keyframes glow {
-  0%, 100% {
+0%, 100% {
     box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
   }
   50% {
@@ -2266,7 +1618,7 @@ button, input, select, textarea{
 }
 
 @keyframes bounce {
-  0%, 20%, 50%, 80%, 100% {
+0%, 20%, 50%, 80%, 100% {
     transform: translateY(0);
   }
   40% {
@@ -2278,36 +1630,11 @@ button, input, select, textarea{
 }
 
 @keyframes slideIn {
-  0% {
+0% {
     transform: translateX(-100%);
   }
   100% {
     transform: translateX(100%);
-  }
-}
-
-/* Responsive button styles for BINGO game */
-@media (max-width: 480px) {
-  .bingo-join-button {
-    padding: 12px 20px !important;
-    border-radius: 16px !important;
-    gap: 8px !important;
-  }
-}
-
-@media (min-width: 768px) {
-  .bingo-join-button {
-    padding: 20px 40px !important;
-    border-radius: 24px !important;
-    gap: 16px !important;
-  }
-}
-
-@media (min-width: 1024px) {
-  .bingo-join-button {
-    padding: 24px 50px !important;
-    border-radius: 28px !important;
-    gap: 20px !important;
   }
 }
 
@@ -2322,7 +1649,20 @@ body{
 *{box-sizing:border-box}
 :root{--bg:#0b0f1a;--panel:#121826;--line:#2b3245;--brand:var(--theme-primary, #10B981);--text:#e7e9ee}
 html,body,#root{height:100%}
-body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asset-background-image) center/cover no-repeat;color:var(--ink);min-height:100vh;isolation:isolate;position:relative}
+/* ✅ ใช้ background-image แทน background shorthand เพื่อให้ CSS variable ทำงานถูกต้อง */
+body{
+  margin:0;
+  font-family:Kanit,system-ui,sans-serif;
+  background-image:var(--theme-asset-background-image);
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+  background-attachment:scroll;
+  color:var(--ink);
+  min-height:100vh;
+  isolation:isolate;
+  position:relative;
+}
 
 .page{padding:24px;max-width:1100px;margin:0 auto}
 .login-page{max-width:440px;margin:60px auto;padding:24px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
@@ -2339,11 +1679,12 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
   display:grid;
   place-items:center;
   padding:24px;
-  /* พื้นหลังภาพ */
-  background:var(--theme-asset-background-image) center/cover no-repeat;
-}
-@supports not (background:var(--theme-asset-background-image)){
-  .auth-hero{ background:var(--theme-asset-background-image) center/cover no-repeat fixed; }
+  /* ✅ พื้นหลังภาพ - ใช้ background-image แทน background shorthand เพื่อให้ CSS variable ทำงานถูกต้อง */
+  background-image:var(--theme-asset-background-image);
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+  background-attachment:fixed;
 }
 
 /* ไล่เฉดมืดครึ่งจอ + เงาเล็กเพื่อให้อ่านง่าย */
@@ -2477,7 +1818,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
   opacity:.65; cursor:not-allowed; transform:none;
 }
 @supports (-webkit-text-stroke: 1px black){
-  .btn-primary{
+.btn-primary{
     -webkit-text-stroke: .35px rgba(0,0,0,.55);
     paint-order: stroke fill;
   }
@@ -2980,12 +2321,12 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @keyframes skeleton-pulse{
-  0%, 100%{opacity:1}
+0%, 100%{opacity:1}
   50%{opacity:0.7}
 }
 
 @keyframes skeleton-shimmer{
-  0%{background-position:-200% 0}
+0%{background-position:-200% 0}
   100%{background-position:200% 0}
 }
 
@@ -3047,7 +2388,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @keyframes cardSlideIn {
-  from {
+from {
     opacity: 0;
     transform: translateY(20px);
   }
@@ -3241,7 +2582,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @media (max-width: 768px) {
-  .home-container {
+.home-container {
     grid-template-columns: 1fr;
     gap: 20px;
     max-width: 600px;
@@ -3311,7 +2652,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @media (max-width: 480px) {
-  .home-hero {
+.home-hero {
     padding: 20px 12px;
   }
   
@@ -3465,7 +2806,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 .btn-cta:active{ transform:translateY(0) }
 
 @media (max-width:520px){
-  .home-card{ border-radius:20px; padding:22px 16px 20px }
+.home-card{ border-radius:20px; padding:22px 16px 20px }
   .home-logo{ height:58px; margin-bottom:14px }
   .home-actions{ grid-template-columns:1fr; gap:14px; margin:6px 6px 18px }
   .btn-cta{ width:100% }
@@ -3507,7 +2848,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
   color: #0f172a !important;
 }
 
-.create-card label,
+.create-card label:not(.toggle-label),
 .create-card .field > span,
 .create-card .form-label {
   color: #374151 !important;
@@ -3529,23 +2870,23 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
 }
 
-/* Create Card Buttons - Override all button styles */
-.create-card button,
-.create-card .btn,
-.create-card .btn-cta,
-.create-card .btn-primary,
-.create-card .primary {
+/* Create Card Buttons - Override all button styles (except admin-btn-danger) */
+.create-card button:not(.admin-btn-danger):not(.dropzone-btn),
+.create-card .btn:not(.admin-btn-danger):not(.dropzone-btn),
+.create-card .btn-cta:not(.admin-btn-danger):not(.dropzone-btn),
+.create-card .btn-primary:not(.admin-btn-danger):not(.dropzone-btn),
+.create-card .primary:not(.admin-btn-danger):not(.dropzone-btn) {
   background: linear-gradient(180deg, var(--theme-primary, #10B981), var(--theme-primary-dark, #059669)) !important;
   color: #fff !important;
   border: 1px solid rgba(255,255,255,.3) !important;
   box-shadow: 0 8px 22px rgba(16,185,129,.22) !important;
 }
 
-.create-card button:hover,
-.create-card .btn:hover,
-.create-card .btn-cta:hover,
-.create-card .btn-primary:hover,
-.create-card .primary:hover {
+.create-card button:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.create-card .btn:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.create-card .btn-cta:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.create-card .btn-primary:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.create-card .primary:not(.admin-btn-danger):not(.dropzone-btn):hover {
   filter: brightness(1.05) !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 14px 26px rgba(16,185,129,.36) !important;
@@ -3564,37 +2905,37 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 /* Theme-specific Create Card Styles */
-.theme-heng36 .create-card button,
-.theme-heng36 .create-card .btn,
-.theme-heng36 .create-card .btn-cta,
-.theme-heng36 .create-card .btn-primary,
-.theme-heng36 .create-card .primary {
+.theme-heng36 .create-card button:not(.admin-btn-danger):not(.dropzone-btn),
+.theme-heng36 .create-card .btn:not(.admin-btn-danger):not(.dropzone-btn),
+.theme-heng36 .create-card .btn-cta:not(.admin-btn-danger):not(.dropzone-btn),
+.theme-heng36 .create-card .btn-primary:not(.admin-btn-danger):not(.dropzone-btn),
+.theme-heng36 .create-card .primary:not(.admin-btn-danger):not(.dropzone-btn) {
   background: linear-gradient(180deg, #10B981, #059669) !important;
   box-shadow: 0 8px 22px rgba(16,185,129,.22) !important;
 }
 
-.theme-heng36 .create-card button:hover,
-.theme-heng36 .create-card .btn:hover,
-.theme-heng36 .create-card .btn-cta:hover,
-.theme-heng36 .create-card .btn-primary:hover,
-.theme-heng36 .create-card .primary:hover {
+.theme-heng36 .create-card button:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.theme-heng36 .create-card .btn:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.theme-heng36 .create-card .btn-cta:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.theme-heng36 .create-card .btn-primary:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.theme-heng36 .create-card .primary:not(.admin-btn-danger):not(.dropzone-btn):hover {
   box-shadow: 0 14px 26px rgba(16,185,129,.36) !important;
 }
 
-.theme-max56 .create-card button,
-.theme-max56 .create-card .btn,
-.theme-max56 .create-card .btn-cta,
-.theme-max56 .create-card .btn-primary,
-.theme-max56 .create-card .primary {
+.theme-max56 .create-card button:not(.admin-btn-danger):not(.dropzone-btn),
+.theme-max56 .create-card .btn:not(.admin-btn-danger):not(.dropzone-btn),
+.theme-max56 .create-card .btn-cta:not(.admin-btn-danger):not(.dropzone-btn),
+.theme-max56 .create-card .btn-primary:not(.admin-btn-danger):not(.dropzone-btn),
+.theme-max56 .create-card .primary:not(.admin-btn-danger):not(.dropzone-btn) {
   background: linear-gradient(180deg, #EF4444, #DC2626) !important;
   box-shadow: 0 8px 22px rgba(220,38,38,.22) !important;
 }
 
-.theme-max56 .create-card button:hover,
-.theme-max56 .create-card .btn:hover,
-.theme-max56 .create-card .btn-cta:hover,
-.theme-max56 .create-card .btn-primary:hover,
-.theme-max56 .create-card .primary:hover {
+.theme-max56 .create-card button:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.theme-max56 .create-card .btn:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.theme-max56 .create-card .btn-cta:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.theme-max56 .create-card .btn-primary:not(.admin-btn-danger):not(.dropzone-btn):hover,
+.theme-max56 .create-card .primary:not(.admin-btn-danger):not(.dropzone-btn):hover {
   box-shadow: 0 14px 26px rgba(220,38,38,.36) !important;
 }
 
@@ -3613,7 +2954,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 .create-card .psel.open{
-  z-index: 11;
+  z-index: 100;
 }
 
 .create-card .psel-list{
@@ -3891,7 +3232,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @media (max-width: 480px) {
-  .checkin-days-container {
+.checkin-days-container {
     padding: 16px;
     margin: 12px 0;
   }
@@ -4111,7 +3452,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @media (max-width: 480px) {
-  .checkin-unified-container {
+.checkin-unified-container {
     padding: 16px;
     margin: 12px 0;
   }
@@ -4392,7 +3733,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @media (max-width: 768px) {
-  .checkin-rewards-table {
+.checkin-rewards-table {
     padding: 20px;
     margin: 16px 0;
   }
@@ -4482,7 +3823,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @media (max-width: 480px) {
-  .checkin-rewards-table {
+.checkin-rewards-table {
     padding: 16px;
     margin: 12px 0;
   }
@@ -4635,7 +3976,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @media (max-width:768px){
-  .create-wrap {
+.create-wrap {
     padding: 20px 16px;
   }
   
@@ -4680,7 +4021,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 }
 
 @media (max-width:480px){
-  .create-wrap {
+.create-wrap {
     padding: 16px 12px;
   }
   
@@ -4842,7 +4183,7 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
   position:absolute; left:0; right:0; top:calc(100% + 6px);
   background:#fff; border:1px solid #d7e3dc; border-radius:12px;
   box-shadow:0 16px 40px rgba(0,0,0,.18);
-  padding:6px; z-index:30;
+  padding:6px; z-index:9999;
   max-height:260px; overflow:auto;
 }
 /* scrollbar สวย ๆ */
@@ -4850,7 +4191,9 @@ body{margin:0;font-family:Kanit,system-ui,sans-serif;background:var(--theme-asse
 .psel-menu::-webkit-scrollbar-track{ background:#f1f7f4; border-radius:8px }
 .psel-menu::-webkit-scrollbar-thumb{ background:#b8dac8; border-radius:8px; border:2px solid #f1f7f4 }
 .psel-menu::-webkit-scrollbar-thumb:hover{ background:#8fc6a8 }
-@supports (scrollbar-color:auto){ .psel-menu{ scrollbar-color:#8fc6a8 #f1f7f4; scrollbar-width:thin } }
+@supports (scrollbar-color:auto){
+.psel-menu{ scrollbar-color:#8fc6a8 #f1f7f4; scrollbar-width:thin }
+}
 
 .psel-item{
   padding:10px 12px; border-radius:10px;
@@ -6000,7 +5343,9 @@ body{
 /* สองคอลัมน์ (ผลบอล/สล็อต) */
 /* alias: .row-2 */
 .row-2{ display:grid; grid-template-columns:1fr 1fr; gap:10px }
-@media (max-width:640px){ .row-2{ grid-template-columns:1fr } }
+@media (max-width:640px){
+.row-2{ grid-template-columns:1fr }
+}
 
 /* ---------------------- Select (สวย + แก้คอนทราสต์) ---------------------- */
 /* รวมชื่อเดิมทั้งหมด: .select-pretty, .select-neo, .select-elevated */
@@ -6046,7 +5391,7 @@ body{
 .select-neo::-webkit-scrollbar-thumb:hover,
 .select-elevated::-webkit-scrollbar-thumb:hover{ background:#8fc6a8 }
 @media (forced-colors: active){
-  .select-pretty, .select-neo, .select-elevated{ border-color:CanvasText }
+.select-pretty, .select-neo, .select-elevated{ border-color:CanvasText }
   .select-pretty option:checked,
   .select-neo option:checked,
   .select-elevated option:checked{ background:Highlight !important; color:HighlightText !important }
@@ -6172,7 +5517,7 @@ body{
   position:absolute; left:0; right:0; top:calc(100% + 6px);
   background:#fff; border:1px solid #d7e3dc; border-radius:12px;
   box-shadow:0 16px 40px rgba(0,0,0,.18);
-  padding:6px; z-index:30;
+  padding:6px; z-index:9999;
   max-height:260px; overflow:auto;
 }
 /* scrollbar สวย ๆ */
@@ -6180,7 +5525,9 @@ body{
 .psel-menu::-webkit-scrollbar-track{ background:#f1f7f4; border-radius:8px }
 .psel-menu::-webkit-scrollbar-thumb{ background:#b8dac8; border-radius:8px; border:2px solid #f1f7f4 }
 .psel-menu::-webkit-scrollbar-thumb:hover{ background:#8fc6a8 }
-@supports (scrollbar-color:auto){ .psel-menu{ scrollbar-color:#8fc6a8 #f1f7f4; scrollbar-width:thin } }
+@supports (scrollbar-color:auto){
+.psel-menu{ scrollbar-color:#8fc6a8 #f1f7f4; scrollbar-width:thin }
+}
 
 .psel-item{
   padding:10px 12px; border-radius:10px;
@@ -6859,7 +6206,7 @@ body{
 }
 
 @keyframes slideDown {
-  from {
+from {
     opacity: 0;
     max-height: 0;
   }
@@ -6907,7 +6254,7 @@ body{
 }
 
 @keyframes modalFadeIn {
-  from { opacity: 0; }
+from { opacity: 0; }
   to { opacity: 1; }
 }
 
@@ -6931,7 +6278,7 @@ body{
 }
 
 @keyframes modalSlideIn {
-  from { 
+from { 
     transform: translateY(20px) scale(0.95); 
     opacity: 0; 
   }
@@ -7133,7 +6480,7 @@ body{
 }
 
 @keyframes codeShine {
-  0% { left: -100%; }
+0% { left: -100%; }
   100% { left: 100%; }
 }
 
@@ -7938,8 +7285,9 @@ body{
   align-items: flex-start;
   justify-content: center;
 
-  background-image:var(--theme-asset-background-image);
-  background-size: contain;
+  /* ✅ ใช้ background-image แทน background shorthand เพื่อให้ CSS variable ทำงานถูกต้อง */
+  background-image: var(--theme-asset-background-image);
+  background-size: cover;      /* เปลี่ยนจาก contain เป็น cover เพื่อให้ภาพเต็มจอ */
   background-position: center;
   background-repeat: no-repeat;
   background-attachment: scroll; /* เกาะพื้นหลังสวยๆ บนจอใหญ่ */
@@ -7992,7 +7340,15 @@ body{
 
 *{box-sizing:border-box}
 html,body{height:100%}
-body{color:var(--text);background:var(--theme-asset-background-image) center/cover no-repeat fixed}
+/* ✅ ใช้ background-image แทน background shorthand เพื่อให้ CSS variable ทำงานถูกต้อง */
+body{
+  color: var(--text);
+  background-image: var(--theme-asset-background-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
 
 /* ==== page wrap & background ==== */
 .play-wrap{
@@ -8000,12 +7356,7 @@ body{color:var(--text);background:var(--theme-asset-background-image) center/cov
   display:flex; align-items:flex-start; justify-content:center;
   padding:24px 14px 48px;
 }
-.bg-game{
-  /* ภาพพื้นหลังหน้าเล่นเกม */
-  background:
-    radial-gradient(1200px 500px at 50% -10%, rgba(255,255,255,.35), transparent 60%),
-    var(--theme-asset-background-image) center/cover no-repeat;
-}
+/* ✅ ลบ .bg-game ที่ซ้ำซ้อนออก เพราะมีอยู่แล้วที่บรรทัด 7932 และจะ override CSS variable */
 
 /* ==== main card ==== */
 .play-card{
@@ -8403,6 +7754,231 @@ body{color:var(--text);background:var(--theme-asset-background-image) center/cov
   filter: brightness(1.05) !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 14px 26px rgba(100,116,139,.36) !important;
+}
+
+/* JEED24 Theme - btn-cta-green (ปุ่มไปที่เว็บไซต์) */
+.theme-jeed24 .btn-cta.btn-cta-green {
+  background: linear-gradient(135deg, #CC5500 0%, #FF7F00 50%, #FF6347 100%) !important;
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.4),
+    0 8px 20px rgba(204,85,0,.4),
+    0 4px 8px rgba(0,0,0,.1) !important;
+}
+
+.theme-jeed24 .btn-cta.btn-cta-green:hover {
+  transform: translateY(-2px) !important;
+  filter: brightness(1.1) !important;
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.5),
+    0 12px 24px rgba(204,85,0,.5),
+    0 6px 12px rgba(0,0,0,.15) !important;
+}
+
+.theme-jeed24 .btn-cta.btn-cta-green:active {
+  transform: translateY(1px) !important;
+  box-shadow: 0 6px 16px rgba(204,85,0,.6) !important;
+}
+
+/* ===== AIGAMING88 — Solid colors (no gradients) — ตามธีม: ดำหลัก / ทอง accent ===== */
+
+/* Primary Actions (สร้าง, บันทึก, ยืนยัน) — ดำสนิท ตัวอักษรทอง */
+.theme-aigaming88 .btn-primary,
+.theme-aigaming88 .btn-cta,
+.theme-aigaming88 .primary,
+.theme-aigaming88 .btn-save,
+.theme-aigaming88 .btn-confirm {
+  background: #0A0A0A !important;
+  box-shadow: 0 8px 22px rgba(212,175,55,.22) !important;
+  color: #D4AF37 !important;
+  border: 1px solid rgba(212,175,55,.35) !important;
+}
+
+.theme-aigaming88 .btn-primary:hover,
+.theme-aigaming88 .btn-cta:hover,
+.theme-aigaming88 .primary:hover,
+.theme-aigaming88 .btn-save:hover,
+.theme-aigaming88 .btn-confirm:hover {
+  filter: brightness(1.15) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 14px 26px rgba(212,175,55,.36) !important;
+}
+
+/* Secondary Actions (แก้ไข, อัพเดต) — ดำสนิท */
+.theme-aigaming88 .btn-secondary,
+.theme-aigaming88 .btn-edit,
+.theme-aigaming88 .btn-update,
+.theme-aigaming88 .edit-btn-inline {
+  background: #0A0A0A !important;
+  box-shadow: 0 8px 22px rgba(212,175,55,.18) !important;
+  color: #D4AF37 !important;
+  border: 1px solid rgba(212,175,55,.30) !important;
+}
+
+.theme-aigaming88 .btn-secondary:hover,
+.theme-aigaming88 .btn-edit:hover,
+.theme-aigaming88 .btn-update:hover,
+.theme-aigaming88 .edit-btn-inline:hover {
+  filter: brightness(1.15) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 14px 26px rgba(212,175,55,.32) !important;
+}
+
+/* Info Actions (ดู, ค้นหา) — ดำสนิท */
+.theme-aigaming88 .btn-info,
+.theme-aigaming88 .btn-search,
+.theme-aigaming88 .btn-view,
+.theme-aigaming88 .search-btn {
+  background: #0A0A0A !important;
+  box-shadow: 0 8px 22px rgba(212,175,55,.18) !important;
+  color: #D4AF37 !important;
+  border: 1px solid rgba(212,175,55,.30) !important;
+}
+
+.theme-aigaming88 .btn-info:hover,
+.theme-aigaming88 .btn-search:hover,
+.theme-aigaming88 .btn-view:hover,
+.theme-aigaming88 .search-btn:hover {
+  filter: brightness(1.15) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 14px 26px rgba(212,175,55,.32) !important;
+}
+
+/* Success Actions — เขียวสนิท (semantic) */
+.theme-aigaming88 .btn-success,
+.theme-aigaming88 .btn-add,
+.theme-aigaming88 .btn-create,
+.theme-aigaming88 .upload-btn-green {
+  background: #10B981 !important;
+  box-shadow: 0 8px 22px rgba(16,185,129,.22) !important;
+  color: #fff !important;
+}
+
+.theme-aigaming88 .btn-success:hover,
+.theme-aigaming88 .btn-add:hover,
+.theme-aigaming88 .btn-create:hover,
+.theme-aigaming88 .upload-btn-green:hover {
+  filter: brightness(1.05) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 14px 26px rgba(16,185,129,.36) !important;
+}
+
+/* Warning/Danger — แดงสนิท (semantic) */
+.theme-aigaming88 .btn-warning,
+.theme-aigaming88 .btn-delete,
+.theme-aigaming88 .btn-cancel,
+.theme-aigaming88 .btn-danger {
+  background: #EF4444 !important;
+  box-shadow: 0 8px 22px rgba(239,68,68,.22) !important;
+  color: #fff !important;
+}
+
+.theme-aigaming88 .btn-warning:hover,
+.theme-aigaming88 .btn-delete:hover,
+.theme-aigaming88 .btn-cancel:hover,
+.theme-aigaming88 .btn-danger:hover {
+  filter: brightness(1.05) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 14px 26px rgba(239,68,68,.36) !important;
+}
+
+/* Neutral (กลับ, ยกเลิก) — เทาสนิท */
+.theme-aigaming88 .btn-neutral,
+.theme-aigaming88 .btn-back,
+.theme-aigaming88 .sidebar-btn-back {
+  background: #525252 !important;
+  box-shadow: 0 8px 22px rgba(82,82,82,.22) !important;
+  color: #fff !important;
+}
+
+.theme-aigaming88 .btn-neutral:hover,
+.theme-aigaming88 .btn-back:hover,
+.theme-aigaming88 .sidebar-btn-back:hover {
+  filter: brightness(1.10) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 14px 26px rgba(82,82,82,.36) !important;
+}
+
+/* AIGAMING88 — btn-cta-green (เช็คอิน "ไปที่เว็บไซต์") = ดำสนิท + ขอบทอง */
+.theme-aigaming88 .btn-cta.btn-cta-green {
+  background: #0A0A0A !important;
+  box-shadow:
+    inset 0 2px 0 rgba(212,175,55,.40),
+    0 8px 20px rgba(212,175,55,.40),
+    0 4px 8px rgba(0,0,0,.40) !important;
+  color: #D4AF37 !important;
+  border: 1px solid rgba(212,175,55,.45) !important;
+}
+
+.theme-aigaming88 .btn-cta.btn-cta-green:hover {
+  transform: translateY(-2px) !important;
+  filter: brightness(1.15) !important;
+  box-shadow:
+    inset 0 2px 0 rgba(212,175,55,.50),
+    0 12px 24px rgba(212,175,55,.50),
+    0 6px 12px rgba(0,0,0,.40) !important;
+}
+
+.theme-aigaming88 .btn-cta.btn-cta-green:active {
+  transform: translateY(1px) !important;
+  box-shadow: 0 6px 16px rgba(212,175,55,.6) !important;
+}
+
+/* AIGAMING88 — Card / Panel backgrounds เป็นสีเดียว (ดำ) แทน gradient
+   ใช้ override component หลักที่อาจ render gradient hard-coded */
+.theme-aigaming88 .games-count {
+  background: #0A0A0A !important;
+  color: #D4AF37 !important;
+  box-shadow: 0 8px 22px rgba(212,175,55,.20) !important;
+}
+
+/* AIGAMING88 — Login (auth) — กล่องและพื้นหลังใช้สีเดียว (ดำโปร่ง) */
+.theme-aigaming88 .auth-card {
+  background: rgba(10, 10, 10, 0.78) !important;
+  border: 1px solid rgba(212,175,55,.35) !important;
+  box-shadow: 0 20px 50px rgba(0,0,0,.55) !important;
+}
+
+.theme-aigaming88 .auth-hero .auth-overlay {
+  background: rgba(0, 0, 0, 0.55) !important;
+}
+
+/* AIGAMING88 — Home / Action panels: ใช้สีเดียว (ดำโปร่ง) */
+.theme-aigaming88 .home-left-panel,
+.theme-aigaming88 .home-right-panel {
+  background: rgba(10, 10, 10, 0.55) !important;
+  border: 2px solid rgba(212,175,55,.30) !important;
+  backdrop-filter: blur(8px) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,.40) !important;
+}
+
+.theme-aigaming88 .home-action-card,
+.theme-aigaming88 .game-card,
+.theme-aigaming88 .game-card:hover,
+.theme-aigaming88 .game-card::before {
+  background: rgba(10, 10, 10, 0.60) !important;
+  border: 1px solid rgba(212,175,55,.25) !important;
+}
+
+.theme-aigaming88 .game-emoji {
+  background: rgba(10, 10, 10, 0.50) !important;
+  border: 2px solid rgba(212,175,55,.30) !important;
+}
+
+.theme-aigaming88 .home-btn-create {
+  background: rgba(10, 10, 10, 0.65) !important;
+  border: 2px solid rgba(212,175,55,.40) !important;
+  border-left: 4px solid rgba(212,175,55,.70) !important;
+}
+
+.theme-aigaming88 .home-btn-create:hover {
+  background: rgba(10, 10, 10, 0.75) !important;
+  border-color: rgba(212,175,55,.55) !important;
+}
+
+/* AIGAMING88 — Section titles / heading underlines = สีทองเดียว (no gradient) */
+.theme-aigaming88 .section-title::before {
+  background: #D4AF37 !important;
+  opacity: 1 !important;
 }
 
 /* ===== THEME-SPECIFIC CARD BACKGROUNDS ===== */
@@ -9273,8 +8849,8 @@ body{color:var(--text);background:var(--theme-asset-background-image) center/cov
   border-left: 4px solid #F97316 !important;
 }
 
-/* เกม Trick or Treat - สีส้มแดง */
-.game-card[data-game-type="เกม Trick or Treat"] {
+/* เกมลุ้นรางวัลพิเศษ - สีส้มแดง */
+.game-card[data-game-type="เกมลุ้นรางวัลพิเศษ"] {
   background: linear-gradient(135deg, 
     rgba(255, 107, 53, 0.1) 0%, 
     rgba(255, 87, 34, 0.08) 50%, 
@@ -9282,7 +8858,7 @@ body{color:var(--text);background:var(--theme-asset-background-image) center/cov
   border-left: 4px solid #FF6B35 !important;
 }
 
-.theme-heng36 .game-card[data-game-type="เกม Trick or Treat"] {
+.theme-heng36 .game-card[data-game-type="เกมลุ้นรางวัลพิเศษ"] {
   background: linear-gradient(135deg, 
     rgba(255, 107, 53, 0.15) 0%, 
     rgba(255, 87, 34, 0.12) 50%, 
@@ -9290,7 +8866,7 @@ body{color:var(--text);background:var(--theme-asset-background-image) center/cov
   border-left: 4px solid #FF6B35 !important;
 }
 
-.theme-max56 .game-card[data-game-type="เกม Trick or Treat"] {
+.theme-max56 .game-card[data-game-type="เกมลุ้นรางวัลพิเศษ"] {
   background: linear-gradient(135deg, 
     rgba(255, 107, 53, 0.15) 0%, 
     rgba(255, 87, 34, 0.12) 50%, 
@@ -9526,7 +9102,9 @@ body{color:var(--text);background:var(--theme-asset-background-image) center/cov
   border:1px solid rgba(2,8,23,.08);
   animation:pop .16s ease-out;
 }
-@keyframes pop{ from{ transform:translateY(8px) scale(.98); opacity:.8 } to{ transform:none; opacity:1 } }
+@keyframes pop{
+from{ transform:translateY(8px) scale(.98); opacity:.8 } to{ transform:none; opacity:1 }
+}
 
 .modal-title{ font-size:20px; font-weight:900; color:#0f172a; margin:2px 0 8px }
 .muted{ color:var(--muted) }
@@ -10234,7 +9812,7 @@ a.btn-cta {
 .ut-5{grid-template-columns: 160px 1fr 150px 150px 1fr}
 
 @media (max-width:640px){
-  .ut-4{grid-template-columns: 1fr}
+.ut-4{grid-template-columns: 1fr}
   .ut-5{grid-template-columns: 1fr}
   .ut-head{display:none}
   .ut-row{border-bottom:1px dashed #e5e7eb}
@@ -10259,7 +9837,7 @@ a.btn-cta {
 .ut-5{grid-template-columns: 160px 1fr 150px 150px 1fr}
 
 @media (max-width:640px){
-  .ut-4, .ut-5{grid-template-columns: 1fr}
+.ut-4, .ut-5{grid-template-columns: 1fr}
   .ut-head{display:none}
   .ut-row{border-bottom:1px dashed #e5e7eb}
 }
@@ -10286,7 +9864,7 @@ a.btn-cta {
 .usage-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 @media (max-width: 640px) {
-  .usage-scroll { max-height: 280px; }
+.usage-scroll { max-height: 280px; }
 }
 /* ปุ่มอัปโหลด: น้ำเงินตามธีม */
 .btn-upload{
@@ -10334,7 +9912,7 @@ a.btn-cta {
   justify-self:center;            /* กันกรณีเป็น block */
 }
 @media (max-width:640px){
-  .usage-table.table-center .ut-3{
+.usage-table.table-center .ut-3{
     grid-template-columns: 56px 1fr 120px;
   }
 }
@@ -10438,7 +10016,7 @@ a.btn-cta {
 }
 
 @keyframes pulse {
-  0% {
+0% {
     transform: scale(1);
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
   }
@@ -10586,7 +10164,6 @@ a.btn-cta {
 .modal--auth .f-eye:active{ transform: translateY(-50%) scale(.98); }
 
 
-
 /* ข้อความเตือน */
 .modal--auth .auth-warning{
   margin-top: 6px; text-align: center;
@@ -10620,7 +10197,7 @@ a.btn-cta {
 }
 
 @keyframes modalFadeIn {
-  from { opacity: 0; }
+from { opacity: 0; }
   to { opacity: 1; }
 }
 
@@ -10644,7 +10221,7 @@ a.btn-cta {
 }
 
 @keyframes notificationSlideIn {
-  from { 
+from { 
     transform: translateY(20px) scale(0.95); 
     opacity: 0; 
   }
@@ -10920,6 +10497,605 @@ a.btn-cta {
   
   .settings-card-subtitle {
     font-size: 13px;
+  }
+}
+
+/* ===== ABM96: Modal buttons in pink theme ===== */
+.theme-abm96 .modal .btn-cta,
+.theme-abm96 .modal .btn-copy,
+.theme-abm96 .modal .btn-fill,
+.theme-abm96 .modal .btn-primary,
+.theme-abm96 .modal .btn-cta-green,
+.theme-abm96 .modal .btn-cta-red,
+.theme-abm96 .modal-actions .btn-primary,
+.theme-abm96 .modal-actions.two .btn-copy,
+.theme-abm96 .modal-actions.two .btn-cta-green,
+.theme-abm96 .cis-code-actions .btn-copy,
+.theme-abm96 .cis-code-actions .btn-fill,
+.theme-abm96 .ccode-actions .btn-copy,
+.theme-abm96 .ccode-actions .btn-fill,
+.theme-abm96 .notification-btn {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #db2777 !important;
+  box-shadow: 0 6px 18px rgba(236, 72, 153, 0.35) !important;
+}
+
+.theme-abm96 .modal .btn-cta:hover,
+.theme-abm96 .modal .btn-copy:hover,
+.theme-abm96 .modal .btn-fill:hover,
+.theme-abm96 .modal .btn-primary:hover,
+.theme-abm96 .modal .btn-cta-green:hover,
+.theme-abm96 .modal .btn-cta-red:hover,
+.theme-abm96 .modal-actions .btn-primary:hover,
+.theme-abm96 .modal-actions.two .btn-copy:hover,
+.theme-abm96 .modal-actions.two .btn-cta-green:hover,
+.theme-abm96 .cis-code-actions .btn-copy:hover,
+.theme-abm96 .cis-code-actions .btn-fill:hover,
+.theme-abm96 .ccode-actions .btn-copy:hover,
+.theme-abm96 .ccode-actions .btn-fill:hover,
+.theme-abm96 .notification-btn:hover {
+  background: linear-gradient(135deg, #db2777 0%, #be185d 100%) !important;
+  box-shadow: 0 8px 22px rgba(219, 39, 119, 0.42) !important;
+}
+
+.theme-abm96 .modal .btn-outline,
+.theme-abm96 .modal-actions .btn-outline {
+  background: #fff1f7 !important;
+  color: #9f1239 !important;
+  border: 1px solid #f9a8d4 !important;
+}
+
+.theme-abm96 .modal .btn-outline:hover,
+.theme-abm96 .modal-actions .btn-outline:hover {
+  background: #ffe4ef !important;
+}
+
+/* Notification popup in ABM should be pink (not blue fallback) */
+.theme-abm96 .notification-popup:not(.heng-theme) {
+  border-color: #ec4899 !important;
+}
+
+.theme-abm96 .notification-popup:not(.heng-theme) .notification-title,
+.theme-abm96 .notification-popup:not(.heng-theme) .notification-header .notification-title,
+.theme-abm96 .notification-popup:not(.heng-theme) .notification-header,
+.theme-abm96 .notification-popup:not(.heng-theme) .notification-header div,
+.theme-abm96 .notification-popup:not(.heng-theme) .notification-message,
+.theme-abm96 .notification-popup:not(.heng-theme) .notification-content .notification-message {
+  color: #be185d !important;
+}
+
+/* ===== KAMO99: Modal buttons in blue theme ===== */
+.theme-kamo99 .modal .btn-cta,
+.theme-kamo99 .modal .btn-copy,
+.theme-kamo99 .modal .btn-fill,
+.theme-kamo99 .modal .btn-primary,
+.theme-kamo99 .modal .btn-cta-green,
+.theme-kamo99 .modal .btn-cta-red,
+.theme-kamo99 .modal-actions .btn-primary,
+.theme-kamo99 .modal-actions.two .btn-copy,
+.theme-kamo99 .modal-actions.two .btn-cta-green,
+.theme-kamo99 .cis-code-actions .btn-copy,
+.theme-kamo99 .cis-code-actions .btn-fill,
+.theme-kamo99 .ccode-actions .btn-copy,
+.theme-kamo99 .ccode-actions .btn-fill,
+.theme-kamo99 .notification-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #1e40af !important;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35) !important;
+}
+
+.theme-kamo99 .modal .btn-cta:hover,
+.theme-kamo99 .modal .btn-copy:hover,
+.theme-kamo99 .modal .btn-fill:hover,
+.theme-kamo99 .modal .btn-primary:hover,
+.theme-kamo99 .modal .btn-cta-green:hover,
+.theme-kamo99 .modal .btn-cta-red:hover,
+.theme-kamo99 .modal-actions .btn-primary:hover,
+.theme-kamo99 .modal-actions.two .btn-copy:hover,
+.theme-kamo99 .modal-actions.two .btn-cta-green:hover,
+.theme-kamo99 .cis-code-actions .btn-copy:hover,
+.theme-kamo99 .cis-code-actions .btn-fill:hover,
+.theme-kamo99 .ccode-actions .btn-copy:hover,
+.theme-kamo99 .ccode-actions .btn-fill:hover,
+.theme-kamo99 .notification-btn:hover {
+  background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%) !important;
+  box-shadow: 0 8px 22px rgba(30, 64, 175, 0.42) !important;
+}
+
+.theme-kamo99 .modal .btn-outline,
+.theme-kamo99 .modal-actions .btn-outline {
+  background: #eff6ff !important;
+  color: #1e40af !important;
+  border: 1px solid #93c5fd !important;
+}
+
+.theme-kamo99 .modal .btn-outline:hover,
+.theme-kamo99 .modal-actions .btn-outline:hover {
+  background: #dbeafe !important;
+}
+
+.theme-kamo99 .notification-popup:not(.heng-theme) {
+  border-color: #2563eb !important;
+}
+
+.theme-kamo99 .notification-popup:not(.heng-theme) .notification-title,
+.theme-kamo99 .notification-popup:not(.heng-theme) .notification-header .notification-title,
+.theme-kamo99 .notification-popup:not(.heng-theme) .notification-header,
+.theme-kamo99 .notification-popup:not(.heng-theme) .notification-header div,
+.theme-kamo99 .notification-popup:not(.heng-theme) .notification-message,
+.theme-kamo99 .notification-popup:not(.heng-theme) .notification-content .notification-message {
+  color: #1e40af !important;
+}
+
+/* ===== KIKI49: Modal buttons in red theme ===== */
+.theme-kiki49 .modal .btn-cta,
+.theme-kiki49 .modal .btn-copy,
+.theme-kiki49 .modal .btn-fill,
+.theme-kiki49 .modal .btn-primary,
+.theme-kiki49 .modal .btn-cta-green,
+.theme-kiki49 .modal .btn-cta-red,
+.theme-kiki49 .modal-actions .btn-primary,
+.theme-kiki49 .modal-actions.two .btn-copy,
+.theme-kiki49 .modal-actions.two .btn-cta-green,
+.theme-kiki49 .cis-code-actions .btn-copy,
+.theme-kiki49 .cis-code-actions .btn-fill,
+.theme-kiki49 .ccode-actions .btn-copy,
+.theme-kiki49 .ccode-actions .btn-fill,
+.theme-kiki49 .notification-btn {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #991b1b !important;
+  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.35) !important;
+}
+
+.theme-kiki49 .modal .btn-cta:hover,
+.theme-kiki49 .modal .btn-copy:hover,
+.theme-kiki49 .modal .btn-fill:hover,
+.theme-kiki49 .modal .btn-primary:hover,
+.theme-kiki49 .modal .btn-cta-green:hover,
+.theme-kiki49 .modal .btn-cta-red:hover,
+.theme-kiki49 .modal-actions .btn-primary:hover,
+.theme-kiki49 .modal-actions.two .btn-copy:hover,
+.theme-kiki49 .modal-actions.two .btn-cta-green:hover,
+.theme-kiki49 .cis-code-actions .btn-copy:hover,
+.theme-kiki49 .cis-code-actions .btn-fill:hover,
+.theme-kiki49 .ccode-actions .btn-copy:hover,
+.theme-kiki49 .ccode-actions .btn-fill:hover,
+.theme-kiki49 .notification-btn:hover {
+  background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%) !important;
+  box-shadow: 0 8px 22px rgba(153, 27, 27, 0.42) !important;
+}
+
+.theme-kiki49 .modal .btn-outline,
+.theme-kiki49 .modal-actions .btn-outline {
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+  border: 1px solid #fca5a5 !important;
+}
+
+.theme-kiki49 .modal .btn-outline:hover,
+.theme-kiki49 .modal-actions .btn-outline:hover {
+  background: #fee2e2 !important;
+}
+
+.theme-kiki49 .notification-popup:not(.heng-theme) {
+  border-color: #dc2626 !important;
+}
+
+.theme-kiki49 .notification-popup:not(.heng-theme) .notification-title,
+.theme-kiki49 .notification-popup:not(.heng-theme) .notification-header .notification-title,
+.theme-kiki49 .notification-popup:not(.heng-theme) .notification-header,
+.theme-kiki49 .notification-popup:not(.heng-theme) .notification-header div,
+.theme-kiki49 .notification-popup:not(.heng-theme) .notification-message,
+.theme-kiki49 .notification-popup:not(.heng-theme) .notification-content .notification-message {
+  color: #991b1b !important;
+}
+
+/* ===== MAB96: Modal buttons in purple theme ===== */
+.theme-mab96 .modal .btn-cta,
+.theme-mab96 .modal .btn-copy,
+.theme-mab96 .modal .btn-fill,
+.theme-mab96 .modal .btn-primary,
+.theme-mab96 .modal .btn-cta-green,
+.theme-mab96 .modal .btn-cta-red,
+.theme-mab96 .modal-actions .btn-primary,
+.theme-mab96 .modal-actions.two .btn-copy,
+.theme-mab96 .modal-actions.two .btn-cta-green,
+.theme-mab96 .cis-code-actions .btn-copy,
+.theme-mab96 .cis-code-actions .btn-fill,
+.theme-mab96 .ccode-actions .btn-copy,
+.theme-mab96 .ccode-actions .btn-fill,
+.theme-mab96 .notification-btn {
+  background: linear-gradient(135deg, #6b21a8 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #6b21a8 !important;
+  box-shadow: 0 6px 18px rgba(107, 33, 168, 0.35) !important;
+}
+
+.theme-mab96 .modal .btn-cta:hover,
+.theme-mab96 .modal .btn-copy:hover,
+.theme-mab96 .modal .btn-fill:hover,
+.theme-mab96 .modal .btn-primary:hover,
+.theme-mab96 .modal .btn-cta-green:hover,
+.theme-mab96 .modal .btn-cta-red:hover,
+.theme-mab96 .modal-actions .btn-primary:hover,
+.theme-mab96 .modal-actions.two .btn-copy:hover,
+.theme-mab96 .modal-actions.two .btn-cta-green:hover,
+.theme-mab96 .cis-code-actions .btn-copy:hover,
+.theme-mab96 .cis-code-actions .btn-fill:hover,
+.theme-mab96 .ccode-actions .btn-copy:hover,
+.theme-mab96 .ccode-actions .btn-fill:hover,
+.theme-mab96 .notification-btn:hover {
+  background: linear-gradient(135deg, #581c87 0%, #6b21a8 100%) !important;
+  box-shadow: 0 8px 22px rgba(88, 28, 135, 0.42) !important;
+}
+
+.theme-mab96 .modal .btn-outline,
+.theme-mab96 .modal-actions .btn-outline {
+  background: #faf5ff !important;
+  color: #6b21a8 !important;
+  border: 1px solid #d8b4fe !important;
+}
+
+.theme-mab96 .modal .btn-outline:hover,
+.theme-mab96 .modal-actions .btn-outline:hover {
+  background: #f3e8ff !important;
+}
+
+.theme-mab96 .notification-popup:not(.heng-theme) {
+  border-color: #7c3aed !important;
+}
+
+.theme-mab96 .notification-popup:not(.heng-theme) .notification-title,
+.theme-mab96 .notification-popup:not(.heng-theme) .notification-header .notification-title,
+.theme-mab96 .notification-popup:not(.heng-theme) .notification-header,
+.theme-mab96 .notification-popup:not(.heng-theme) .notification-header div,
+.theme-mab96 .notification-popup:not(.heng-theme) .notification-message,
+.theme-mab96 .notification-popup:not(.heng-theme) .notification-content .notification-message {
+  color: #6b21a8 !important;
+}
+
+/* ===== Gameplay CTA should always follow active theme ===== */
+.play-wrap .btn-cta {
+  background: var(--theme-gradient-primary) !important;
+  color: var(--theme-text-inverse) !important;
+  border: 1px solid transparent !important;
+  box-shadow: 0 8px 22px var(--theme-shadow-medium) !important;
+}
+
+.play-wrap .btn-cta:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--theme-primary-dark) 0%, var(--theme-primary) 100%) !important;
+  box-shadow: 0 12px 28px var(--theme-shadow-dark) !important;
+  transform: translateY(-1px);
+}
+
+.play-wrap .btn-cta:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.play-wrap .btn-cta:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ======================================================================
+   ADMIN-ONLY CLASSES (decoupled from player pages)
+   แก้ไขได้อิสระโดยไม่กระทบ /play ฝั่ง USER
+   ====================================================================== */
+
+/* ----- admin-f-label ----- */
+.admin-f-label {
+  display: block;
+  margin: 16px 6px 8px;
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+/* ----- admin-f-control ----- */
+.admin-f-control {
+  width: 100%;
+  height: 52px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  outline: none;
+  transition: .2s;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+.admin-f-control:focus {
+  background: #fff;
+  border-color: var(--theme-primary, #10B981);
+  box-shadow: 0 0 0 4px var(--theme-shadow-light, rgba(16, 185, 129, 0.15));
+}
+.admin-f-control::placeholder {
+  color: rgba(15, 23, 42, 0.45);
+  font-weight: 500;
+}
+.admin-f-control.sm { height: 40px; }
+
+/* ----- admin-btn-cta ----- */
+.admin-btn-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  border: 0;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 15px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--theme-primary, #10B981) 0%, var(--theme-primary-dark, #059669) 100%);
+  box-shadow: 0 6px 18px var(--theme-shadow-medium, rgba(16, 185, 129, 0.22));
+  cursor: pointer;
+  transition: transform .12s ease, filter .2s ease, box-shadow .2s ease;
+}
+.admin-btn-cta:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+.admin-btn-cta:active {
+  transform: translateY(0);
+}
+.admin-btn-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
+
+/* ----- admin-btn-primary ----- */
+.admin-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--theme-primary, #10B981) 0%, var(--theme-primary-dark, #059669) 100%);
+  box-shadow: 0 4px 12px var(--theme-shadow-light, rgba(16, 185, 129, 0.15));
+  cursor: pointer;
+  transition: filter .15s ease, transform .1s ease;
+}
+.admin-btn-primary:hover {
+  filter: brightness(1.05);
+}
+.admin-btn-primary:active {
+  transform: translateY(1px);
+}
+
+/* ----- admin-btn-outline ----- */
+.admin-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  border: 2px solid #cbd5e1;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.admin-btn-outline:hover {
+  background: #eef2f7;
+}
+
+/* ----- admin-modal-overlay ----- */
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: modalFadeIn 0.25s ease-out;
+}
+
+/* ----- admin-modal ----- */
+.admin-modal {
+  width: min(480px, 92vw);
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px 20px 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  animation: pop .18s ease-out;
+}
+.admin-modal h3 {
+  margin: 0 0 10px;
+  font-weight: 800;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+/* ----- admin-muted ----- */
+.admin-muted {
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* ----- admin-img-preview ----- */
+.admin-img-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  margin: 12px auto;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  object-fit: contain;
+}
+
+/* ----- admin-grid2 ----- */
+.admin-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: end;
+}
+
+/* ----- admin-btn-danger (red across ALL themes, immune to theme overrides) ----- */
+.admin-btn-danger {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 48px !important;
+  padding: 0 18px !important;
+  border: none !important;
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  color: #fff !important;
+  background: linear-gradient(180deg, #f87171 0%, #dc2626 100%) !important;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.22) !important;
+  cursor: pointer !important;
+  transition: all .18s ease !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+.admin-btn-danger:hover {
+  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%) !important;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35) !important;
+  transform: translateY(-1px) !important;
+  filter: none !important;
+}
+.admin-btn-danger:active {
+  transform: scale(0.97) !important;
+}
+.admin-btn-danger:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Responsive admin */
+@media (max-width: 768px) {
+  .admin-f-label {
+    font-size: 14px;
+    margin: 14px 4px 6px;
+  }
+  .admin-f-control {
+    height: 48px;
+    font-size: 15px;
+  }
+  .admin-btn-cta {
+    height: 44px;
+    font-size: 14px;
+  }
+  .admin-actions-row .admin-btn-cta {
+    height: 48px;
+    font-size: 15px;
+  }
+}
+
+/* =====================================================
+   CLEAN PLAY LAYOUT — white card, theme bg on desktop
+   ===================================================== */
+.play-wrap--clean {
+  background: #f8fafc !important;
+  background-image: none !important;
+  min-height: 100svh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0 !important;
+  position: relative;
+}
+.play-wrap--clean::before {
+  display: none !important;
+  content: none !important;
+}
+.play-wrap--clean .play-card {
+  width: 100%;
+  max-width: 540px;
+  min-height: 100svh;
+  min-height: 100dvh;
+  background: #ffffff !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 16px 16px 32px !important;
+  position: relative;
+  z-index: 1;
+}
+.play-wrap--clean .play-logo {
+  width: min(280px, 55vw) !important;
+  height: auto !important;
+  margin: 4px auto 4px !important;
+  display: block;
+}
+.play-wrap--clean .play-head {
+  margin: 0 0 10px !important;
+}
+.play-wrap--clean .type-badge {
+  padding: 8px 16px !important;
+  font-size: 15px !important;
+  gap: 8px !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+.play-wrap--clean .type-badge .ico {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 16px !important;
+}
+.play-wrap--clean .type-badge .label {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+
+/* Desktop: theme background image outside the card */
+@media (min-width: 641px) {
+  .play-wrap--clean {
+    background: #0b1220 !important;
+    background-image: var(--theme-asset-background-image) !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-attachment: fixed !important;
+    padding: 24px 0 !important;
+  }
+  .play-wrap--clean::before {
+    display: block !important;
+    content: "" !important;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.35) !important;
+    z-index: 0;
+  }
+  .play-wrap--clean .play-card {
+    min-height: auto !important;
+    border-radius: 18px !important;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.15) !important;
+    padding: 20px 20px 32px !important;
+    margin: 0 auto;
+  }
+}
+
+/* Small mobile */
+@media (max-width: 400px) {
+  .play-wrap--clean .play-card {
+    padding: 12px 12px 28px !important;
+  }
+  .play-wrap--clean .play-logo {
+    width: min(220px, 60vw) !important;
   }
 }
 

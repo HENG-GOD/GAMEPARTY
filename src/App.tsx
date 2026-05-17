@@ -6,7 +6,6 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import UploadUsersExtra from './pages/UploadUsersExtra'
 import ImageSettings from './pages/ImageSettings'
-import CreateGame from './pages/CreateGame'
 import AdminAnswers from './pages/AdminAnswers'
 import ThemeTest from './pages/ThemeTest'
 import TestCheckinSecurity from './pages/TestCheckinSecurity'
@@ -14,6 +13,7 @@ import GameCreate from './pages/games/GameCreate'
 import GameEdit from './pages/games/GameEdit'
 import GamesList from './pages/games/GamesList'
 import GamePlay from './pages/games/GamePlay'
+import AdminLayout from './components/AdminLayout'
 import { initializePrefetching } from './services/prefetching'
 import { ThemeProvider } from './contexts/ThemeContext'
 
@@ -23,40 +23,19 @@ function RequireAuth({ children }: { children: ReactElement }) {
   
   React.useEffect(() => {
     let mounted = true
-    let subscription: any = null
+    let unsubscribe: (() => void) | null = null
     
     const checkAuth = async () => {
       try {
-        const { getSession, onAuthStateChange } = await import('./services/supabase-auth')
+        const { onAuthStateChange } = await import('./services/firebase-auth')
         
-        // Initial check
-        const { data } = await getSession()
-        if (mounted) {
-          setAuthed(!!data.session)
-        }
-        
-        // Listen for auth state changes
-        const authSubscription = onAuthStateChange((event, session) => {
+        // Use onAuthStateChange directly - it will wait for auth state to restore
+        // and fire immediately with current user, then on any changes
+        unsubscribe = onAuthStateChange((user) => {
           if (mounted) {
-            // ✅ Log auth events for debugging
-            if (process.env.NODE_ENV === 'development') {
-              console.log('[RequireAuth] Auth state change:', event, !!session)
-            }
-            
-            // ✅ Handle different auth events
-            if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-              // ✅ Only update if session actually changed
-              const hasSession = !!session
-              if (hasSession !== authed) {
-                setAuthed(hasSession)
-              }
-            } else {
-              setAuthed(!!session)
-            }
+            setAuthed(!!user)
           }
         })
-        
-        subscription = authSubscription
       } catch (error) {
         console.error('Error checking auth:', error)
         if (mounted) {
@@ -69,19 +48,8 @@ function RequireAuth({ children }: { children: ReactElement }) {
     
     return () => {
       mounted = false
-      if (subscription) {
-        // Supabase onAuthStateChange returns { data: { subscription: { unsubscribe } } }
-        try {
-          if (subscription?.data?.subscription?.unsubscribe) {
-            subscription.data.subscription.unsubscribe()
-          } 
-          // Or direct unsubscribe method
-          else if (typeof subscription?.unsubscribe === 'function') {
-            subscription.unsubscribe()
-          }
-        } catch (err) {
-          console.warn('Error unsubscribing auth:', err)
-        }
+      if (unsubscribe) {
+        unsubscribe()
       }
     }
   }, [])
@@ -119,9 +87,7 @@ export default function App() {
         {/* เผื่อผู้ใช้กดลิงก์รูปแบบอื่น → ส่งเข้า GamePlay เช่นกัน */}
         <Route path="/games/play/:id" element={<GamePlay />} />
         <Route path="/games/:id/play" element={<GamePlay />} />
-        {/* HOST link สำหรับเกม BINGO */}
-        <Route path="/host/:id" element={<GamePlay />} />
-        
+
         {/* หน้าแอดมิน (ไม่ต้องล็อกอิน) */}
         <Route path="/admin/answers/:gameId" element={<AdminAnswers />} />
 
@@ -136,13 +102,15 @@ export default function App() {
         {/* Alias สำหรับ backward compatibility */}
         <Route path="/test-security" element={<TestCheckinSecurity />} />
         
-        {/* แอดมิน (ต้องล็อกอิน) */}
-        <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
-        <Route path="/upload-users-extra" element={<RequireAuth><UploadUsersExtra /></RequireAuth>} />
-        <Route path="/image-settings" element={<RequireAuth><ImageSettings /></RequireAuth>} />
-        <Route path="/games" element={<RequireAuth><GamesList /></RequireAuth>} />
-        <Route path="/games/:id" element={<RequireAuth><GameEdit /></RequireAuth>} />
-        <Route path="/creategame" element={<RequireAuth><GameCreate /></RequireAuth>} />
+        {/* แอดมิน (ต้องล็อกอิน) — AdminLayout ให้ sidebar + body */}
+        <Route element={<RequireAuth><AdminLayout /></RequireAuth>}>
+          <Route path="/home" element={<Home />} />
+          <Route path="/upload-users-extra" element={<UploadUsersExtra />} />
+          <Route path="/image-settings" element={<ImageSettings />} />
+          <Route path="/games" element={<GamesList />} />
+          <Route path="/games/:id" element={<GameEdit />} />
+          <Route path="/creategame" element={<GameCreate />} />
+        </Route>
         
         {/* อื่น ๆ → กลับหน้า root */}
         <Route path="*" element={<Navigate to="/" replace />} />

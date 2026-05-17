@@ -63,11 +63,3 @@ export function getPlayerLink(gameId: string): string {
   return `${getPlayerOrigin()}${getPlayerPath(gameId)}`
 }
 
-export function getHostPath(gameId: string): string {
-  return `/host/${encodeURIComponent(gameId)}`
-}
-
-export function getHostLink(gameId: string): string {
-  return `${getPlayerOrigin()}${getHostPath(gameId)}`
-}
-

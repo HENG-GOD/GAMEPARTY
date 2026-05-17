@@ -2,9 +2,10 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useSearchParams, useLocation } from 'react-router-dom'
-// ✅ Removed Firebase RTDB imports - using PostgreSQL 100%
 import { dataCache } from '../../services/cache'
-import * as postgresqlAdapter from '../../services/postgresql-adapter'
+import { getGameById, subscribeGameUpdates } from '../../services/firebase-games-new'
+import { getUser } from '../../services/firebase-users-new'
+import { getAnswers, submitAnswer, getUserLatestAnswer } from '../../services/firebase-answers-new'
 import '../../styles/style.css'
 import SlotGame from '../../components/SlotGame'
 import PuzzleGame from '../../components/PuzzleGame'
@@ -12,13 +13,21 @@ import NumberGame from '../../components/NumberGame'
 import FootballGame from '../../components/FootballGame'
 import CheckinGame from '../../components/CheckinGame'
 import TrickOrTreatGame from '../../components/TrickOrTreatGame'
+import PokDengGame from '../../components/PokDengGame'
 import LoyKrathongGame from '../../components/LoyKrathongGame'
-import BingoGame from '../../components/BingoGame'
 import AnnounceGame from '../../components/AnnounceGame'
-import SnowEffect from '../../components/SnowEffect'
+import ReferralGame from '../../components/ReferralGame'
+import WorldCupGame from '../../components/WorldCupGame'
 import { useTheme, useThemeAssets, useThemeBranding, useThemeColors } from '../../contexts/ThemeContext'
 import { getImageUrl } from '../../services/image-upload'
-import { useSocketIOGameData } from '../../hooks/useSocketIO'
+import { 
+  getAnnounceUsersFromSubcollection,
+  checkUserInAnnounceUsers,
+  getUserBonusFromSubcollection,
+  getAnnounceUsersCount
+} from '../../services/firebase-announce-users'
+import { isBlacklisted } from '../../services/firebase-blacklist'
+import { Trophy, Gift, Target, Gamepad2, PartyPopper, AlertTriangle, Lock, User, XCircle, Clock, Sparkles, Copy, CheckCircle2, Eye, EyeOff, ExternalLink, LogOut, Loader2, RotateCw } from 'lucide-react'
 
 /** แปลงชื่อให้เป็นรูปแบบคีย์ใน DB (ตัดช่องว่างและอักขระพิเศษ) */
 const normalizeUser = (s: string) => s.trim().replace(/\s+/g, '').replace(/[.#$[\]@]/g, '_').toUpperCase()
@@ -42,16 +51,53 @@ const hexToRgba = (hex: string, alpha = 1) => {
 
 const clampSize = (min: number, vw: number, max: number) => `clamp(${min}px, ${vw}vw, ${max}px)`
 
+const PLAYER_CACHE_KEY = 'player_name'
+const PLAYER_CACHE_TS_KEY = 'player_name_ts'
+const PLAYER_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
+
+function getCachedPlayerName(): string {
+  try {
+    const name = localStorage.getItem(PLAYER_CACHE_KEY)
+    const ts = localStorage.getItem(PLAYER_CACHE_TS_KEY)
+    if (!name || !ts) return ''
+    if (Date.now() - Number(ts) > PLAYER_CACHE_TTL) {
+      localStorage.removeItem(PLAYER_CACHE_KEY)
+      localStorage.removeItem(PLAYER_CACHE_TS_KEY)
+      return ''
+    }
+    return name
+  } catch {
+    return ''
+  }
+}
+
+function setCachedPlayerName(name: string) {
+  try {
+    localStorage.setItem(PLAYER_CACHE_KEY, name)
+    localStorage.setItem(PLAYER_CACHE_TS_KEY, String(Date.now()))
+  } catch {}
+}
+
+function clearCachedPlayerName() {
+  try {
+    localStorage.removeItem(PLAYER_CACHE_KEY)
+    localStorage.removeItem(PLAYER_CACHE_TS_KEY)
+  } catch {}
+}
+
 type GameType =
   | 'เกมทายภาพปริศนา'
+  | 'เกมปาร์ตี้'
+  | 'เกมป๊อกเด้ง'
   | 'เกมทายเบอร์เงิน'
   | 'เกมทายผลบอล'
+  | 'เกมบอลโลก'
   | 'เกมสล็อต'
   | 'เกมเช็คอิน'
   | 'เกมประกาศรางวัล'
-  | 'เกม Trick or Treat'
+  | 'เกมลุ้นรางวัลพิเศษ'
   | 'เกมลอยกระทง'
-  | 'เกม BINGO'
+  | 'เกมแนะนำเพื่อน'
 
 type GameData = {
   id: string
@@ -65,8 +111,34 @@ type GameData = {
   codeCursor?: number
   claimedBy?: Record<string, any>
   puzzle?: { imageDataUrl?: string; answer?: string }
+  partyRounds?: Array<{
+    round?: number
+    answer?: string
+    codeCount?: number
+    codeStartIndex?: number
+    codeEndIndex?: number
+    imageDataUrl?: string
+    fileName?: string
+  }>
+  partyRoundNumber?: number
   numberPick?: { imageDataUrl?: string; endAt?: number | null }
   football?: { imageDataUrl?: string; homeTeam?: string; awayTeam?: string; endAt?: number | null }
+  worldCup?: {
+    title?: string
+    ended?: boolean
+    endedAt?: number | null
+    bonusPerCorrect?: number
+    matchResults?: Record<string, {
+      home?: number
+      away?: number
+      codes?: string[]
+      codeCursor?: number
+      codeFileName?: string
+      claimedBy?: Record<string, { code?: string; bonus?: number; ts: number; answer?: string }>
+      ended?: boolean
+      endedAt?: number | null
+    }>
+  }
   slot?: any
   announce?: { users: string[] }
   checkin?: { users?: string[]; [key: string]: any }
@@ -74,34 +146,42 @@ type GameData = {
     winChance?: number
     ghostImage?: string
   }
-  bingo?: {
-    maxUsers: number
-    autoStartUsers: number
-    codes: string[]
-    players: Record<string, any>
-    status: 'waiting' | 'playing' | 'finished'
-    gameState: {
-      calledNumbers: number[]
-      gameStarted: boolean
-      gameEnded: boolean
-    }
+}
+
+const toCodesArray = (raw: any): string[] => {
+  if (Array.isArray(raw)) return raw.map((c) => String(c ?? ''))
+  if (raw && typeof raw === 'object') {
+    return Object.keys(raw)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => String(raw[k] ?? ''))
   }
+  return []
+}
+
+const parseRoundNumber = (value?: string | null): number | null => {
+  const raw = String(value || '').trim().toUpperCase()
+  if (!raw) return null
+  const num = raw.startsWith('R') ? Number(raw.slice(1)) : Number(raw)
+  return Number.isFinite(num) && num >= 1 ? Math.floor(num) : null
 }
 
 type ModalKind = 'info' | 'code' | 'codes-empty';
 
-const TYPE_META: Record<GameType, { icon: string; cls: string; label: string }> = {
+const TYPE_META: Record<GameType, { icon: React.ReactNode; cls: string; label: string }> = {
   'เกมทายภาพปริศนา': { icon: '🧩', cls: 'type-puzzle',   label: 'เกมทายภาพปริศนา' },
+  'เกมปาร์ตี้': { icon: <PartyPopper size={20} />, cls: 'type-puzzle',   label: 'เกมปาร์ตี้' },
   'เกมทายเบอร์เงิน' : { icon: '🔢', cls: 'type-number',   label: 'เกมทายเบอร์เงิน' },
   'เกมทายผลบอล'     : { icon: '⚽️', cls: 'type-football', label: 'เกมทายผลบอล' },
+  'เกมบอลโลก'        : { icon: '🏆', cls: 'type-worldcup', label: 'เกมบอลโลก' },
   'เกมสล็อต'         : { icon: '🎰', cls: 'type-slot',     label: 'เกมสล็อต' },
   'เกมเช็คอิน'       : { icon: '📍', cls: 'type-checkin',  label: 'HENG36 GAME ' },
-  'เกมประกาศรางวัล': { icon: '🏆', cls: 'type-announce', label: 'เกมประกาศรางวัล' },
-  'เกม Trick or Treat': { icon: '🎃', cls: 'type-trickortreat', label: 'เกม Trick or Treat' },
+  'เกมประกาศรางวัล': { icon: <Trophy size={20} />, cls: 'type-announce', label: 'เกมประกาศรางวัล' },
+  'เกมลุ้นรางวัลพิเศษ': { icon: <Gift size={20} />, cls: 'type-trickortreat', label: 'เกมลุ้นรางวัลพิเศษ' },
   'เกมลอยกระทง'     : { icon: '🪔', cls: 'type-loy',       label: 'เกมลอยกระทง' },
-  'เกม BINGO'        : { icon: '🎯', cls: 'type-bingo',    label: 'เกม BINGO' },
+  'เกมแนะนำเพื่อน'   : { icon: '🤝', cls: 'type-referral', label: 'เกมแนะนำเพื่อน' },
+  'เกมป๊อกเด้ง'      : { icon: '🃏', cls: 'type-pokdeng', label: 'เกมป๊อกเด้ง' },
 }
-const getTypeMeta = (t: GameType) => TYPE_META[t] ?? { icon: '🎮', cls: 'type-default', label: t }
+const getTypeMeta = (t: GameType) => TYPE_META[t] ?? { icon: <Gamepad2 size={20} />, cls: 'type-default', label: t }
 
 /** ----- Overlay แบบ portal ----- */
 function Overlay({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
@@ -126,17 +206,16 @@ type ModalState =
   | { open: true; kind: 'codes-empty'; title: string; message: string }
 
 export default function PlayGame() {
-  // รองรับทั้ง /play/:id, /?id=..., และ /host/:id
+  // รองรับทั้ง /play/:id และ /?id=...
   const params = useParams()
   const [sp] = useSearchParams()
   const location = useLocation()
   const id = (params.id || sp.get('id') || '').trim()
-  // เช็คเงื่อนไข HOST จาก path /host/:id
-  const isHost = location.pathname.startsWith('/host/')
+  const requestedRound = React.useMemo(() => parseRoundNumber(sp.get('round')), [sp])
   const assets = useThemeAssets()
   const branding = useThemeBranding()
   const colors = useThemeColors()
-  const { themeName } = useTheme()
+  const { themeName, theme } = useTheme()
 
   const buildExpiredMessage = React.useCallback(
     (player: string, score?: string | null) => {
@@ -162,9 +241,11 @@ export default function PlayGame() {
   const [game, setGame] = React.useState<GameData | null>(null)
   const [loading, setLoading] = React.useState(true)
   
-  // ✅ Use Socket.io for game data real-time updates (แทน polling)
-  const { data: gameData, loading: gameDataLoading } = useSocketIOGameData(id)
+  // ✅ Use refs เพื่อเก็บค่าเก่าสำหรับ log (ป้องกัน log ซ้ำ)
+  const prevGameIdRef = React.useRef<string | null>(null)
+  const prevPuzzleImageRef = React.useRef<string | null>(null)
   
+  // ✅ Use Firebase Realtime for game data updates
   React.useEffect(() => {
     if (!id) {
       setGame(null)
@@ -172,42 +253,127 @@ export default function PlayGame() {
       return
     }
 
-    setLoading(gameDataLoading)
+    setLoading(true)
     
-    if (gameData) {
-      const gameDataTyped = { id, ...gameData } as GameData
-      setGame(gameDataTyped)
-      // ✅ Invalidate cache เมื่อมีการอัพเดต
-      dataCache.invalidateGame(id)
-    } else if (!gameDataLoading) {
-      setGame(null)
-    }
-  }, [id, gameData, gameDataLoading])
+    // Helper function to normalize game data structure
+    const normalizeGameData = (rawData: any): GameData => {
+      if (!rawData) return rawData
+      
+      // ✅ รองรับทั้ง nested (gameData.puzzle) และ flat (puzzle) structure
+      const gameData = rawData.gameData || {}
+      const normalized: any = {
+        id: rawData.id || rawData.gameId || id,
+        ...rawData,
+        // ✅ Flatten gameData fields to top level for easier access
+        puzzle: rawData.puzzle || gameData.puzzle,
+        numberPick: rawData.numberPick || gameData.numberPick,
+        football: rawData.football || gameData.football,
+        worldCup: rawData.worldCup || gameData.worldCup,
+        slot: rawData.slot || gameData.slot,
+        checkin: rawData.checkin || gameData.checkin,
+        announce: rawData.announce || gameData.announce,
+        trickOrTreat: rawData.trickOrTreat || gameData.trickOrTreat,
+        loyKrathong: rawData.loyKrathong || gameData.loyKrathong,
+        referral: rawData.referral || gameData.referral,
+        codes: rawData.codes || gameData.codes,
+        codeCursor: rawData.codeCursor !== undefined ? rawData.codeCursor : gameData.codeCursor,
+        claimedBy: rawData.claimedBy || gameData.claimedBy,
+        codesVersion: rawData.codesVersion || gameData.codesVersion,
+        partyRounds: rawData.partyRounds || gameData.partyRounds || [],
+        // ✅ ส่งต่อ partyMode + partyImagePool ให้ PuzzleGame ใช้สุ่มรูปต่อผู้เล่น (โหมด random_pool)
+        partyMode: rawData.partyMode || gameData.partyMode || 'classic',
+        partyImagePool: rawData.partyImagePool || gameData.partyImagePool || [],
+      }
 
-  // กำหนด username สำหรับ HOST ตามธีม
-  const getHostUsername = () => {
-    if (themeName === 'max56') return 'MAX56'
-    if (themeName === 'jeed24') return 'JEED24'
-    return 'HENG36'
-  }
+      if (normalized.type === 'เกมปาร์ตี้' && requestedRound && Array.isArray(normalized.partyRounds)) {
+        const roundCfg = normalized.partyRounds[requestedRound - 1]
+        if (roundCfg) {
+          const allCodes = toCodesArray(normalized.codes)
+          const start = Math.max(0, Number(roundCfg.codeStartIndex || 1) - 1)
+          const endFromConfig = Number(roundCfg.codeEndIndex || 0)
+          const defaultEnd = start + Math.max(1, Number(roundCfg.codeCount) || 1) - 1
+          const end = Math.max(start, endFromConfig > 0 ? endFromConfig - 1 : defaultEnd)
+          const roundCodes = allCodes.slice(start, end + 1)
+          const roundKey = `R${requestedRound}`
+          const partyRoundState = rawData.gameData?.partyRoundState || rawData.partyRoundState || {}
+          const stateForRound = partyRoundState?.[roundKey] || {}
+
+          normalized.puzzle = {
+            imageDataUrl: roundCfg.imageDataUrl || normalized.puzzle?.imageDataUrl,
+            answer: roundCfg.answer || normalized.puzzle?.answer,
+          }
+          normalized.codes = roundCodes
+          normalized.codeCursor = Number(stateForRound.codeCursor || 0)
+          normalized.claimedBy = stateForRound.claimedBy || {}
+          normalized.partyRoundNumber = requestedRound
+          normalized.codesVersion = Number(stateForRound.codesVersion || requestedRound)
+        }
+      }
+      
+      // ✅ อัพเดท ref เมื่อ game data เปลี่ยน
+      const currentGameId = normalized.id
+      const currentPuzzleImage = normalized.puzzle?.imageDataUrl || null
+      if (currentGameId !== prevGameIdRef.current || currentPuzzleImage !== prevPuzzleImageRef.current) {
+        prevGameIdRef.current = currentGameId
+        prevPuzzleImageRef.current = currentPuzzleImage
+      }
+      
+      return normalized as GameData
+    }
+
+    // Initial load
+    getGameById(id).then((gameData) => {
+      if (gameData) {
+        const gameDataTyped = normalizeGameData({ id, ...gameData })
+        setGame(gameDataTyped)
+        dataCache.invalidateGame(id)
+      } else {
+        setGame(null)
+      }
+      setLoading(false)
+    }).catch((error) => {
+      console.error('Error loading game:', error)
+      setGame(null)
+      setLoading(false)
+    })
+
+    // Subscribe to real-time updates with error handling
+    let unsubscribe: (() => void) | null = null;
+    try {
+      unsubscribe = subscribeGameUpdates(id, (gameData) => {
+        if (gameData) {
+          const gameDataTyped = normalizeGameData({ id, ...gameData })
+          setGame(gameDataTyped)
+          dataCache.invalidateGame(id)
+        } else {
+          setGame(null)
+        }
+        setLoading(false)
+      })
+    } catch (error) {
+      // Handle subscription errors gracefully
+      // Firebase SDK internal errors are caught by global handlers
+      setLoading(false)
+    }
+
+    return () => {
+      if (unsubscribe) {
+        try {
+          unsubscribe()
+        } catch (error) {
+          // Ignore errors during cleanup
+        }
+      }
+    }
+  }, [id, requestedRound])
 
   // ผู้เล่น
-  // ✅ ไม่โหลด username จาก localStorage เมื่อ component mount - ให้ login ใหม่ทุกครั้งที่ refresh
-  const [username, setUsername] = React.useState(
-    isHost ? getHostUsername() : ''
-  )
+  const cachedName = getCachedPlayerName()
+  const [username, setUsername] = React.useState(cachedName)
   const [password, setPassword] = React.useState('')
-  const [userStatus, setUserStatus] = React.useState<string | null>(null)  
-  const [needName, setNeedName] = React.useState(!isHost)
+  const [userStatus, setUserStatus] = React.useState<string | null>(null)
+  const [needName, setNeedName] = React.useState(!cachedName)
   const [checkingName, setCheckingName] = React.useState(false)
-
-  // ✅ สำหรับ HOST: ข้ามการ login ทันทีเมื่อ game โหลดเสร็จ
-  React.useEffect(() => {
-    if (isHost && game?.type === 'เกม BINGO' && username) {
-      setNeedName(false)
-      localStorage.setItem('player_name', username)
-    }
-  }, [isHost, game?.type, username])
 
 React.useEffect(() => {
   if (typeof window === 'undefined') return
@@ -224,7 +390,7 @@ React.useEffect(() => {
   const [runtimeExpired, setRuntimeExpired] = React.useState(false)
   const userKey = React.useMemo(() => normalizeUser(username || ''), [username])
   // สำหรับเกมประกาศรางวัล: เก็บข้อมูลโบนัสที่จะแสดงในหน้า
-const [announceBonus, setAnnounceBonus] = React.useState<{ user: string; bonus: number } | null>(null)
+const [announceBonus, setAnnounceBonus] = React.useState<{ user: string; bonus: number; eligible?: boolean; conditionText?: string } | null>(null)
 const [initialFootballGuess, setInitialFootballGuess] = React.useState<{ home: number; away: number } | null>(null)
 const [lastFootballGuessText, setLastFootballGuessText] = React.useState<string | null>(null)
 const [lastFootballGuessLoaded, setLastFootballGuessLoaded] = React.useState(false)
@@ -233,7 +399,7 @@ const [lastNumberGuess, setLastNumberGuess] = React.useState<string | null>(null
 const [lastNumberGuessLoaded, setLastNumberGuessLoaded] = React.useState(false)
 const numberGuessShownRef = React.useRef(false)
 // ให้ปุ่ม 'ตกลง' ทำงานพิเศษ (ตอนพบว่าเคยตอบแล้ว)
-const [redirectOnOk, setRedirectOnOk] = React.useState<null | 'heng36'>(null);
+const [redirectOnOk, setRedirectOnOk] = React.useState<null | string>(null);
 const [isNarrowScreen, setIsNarrowScreen] = React.useState<boolean>(() => {
   if (typeof window === 'undefined') return false
   return window.innerWidth < 560
@@ -250,7 +416,7 @@ const [isNarrowScreen, setIsNarrowScreen] = React.useState<boolean>(() => {
 const modalTitle =
   modal.open && typeof (modal as any)?.title === 'string' ? (modal as any).title : '';
 const modalHeaderTone =
-  modal.open && (modal.kind === 'codes-empty' || modal.kind === 'confirm-replace') ? 'danger' : 'primary';
+  modal.open && modal.kind === 'codes-empty' ? 'danger' : 'primary';
 const modalBodyBackground = React.useMemo(
   () => hexToRgba(colors.bgSecondary ?? colors.gray100 ?? colors.primaryLight ?? colors.primary ?? '#ffffff', 0.95),
   [colors.bgSecondary, colors.gray100, colors.primary, colors.primaryLight]
@@ -314,7 +480,7 @@ const modalTextStyles = React.useMemo(() => {
 }, [colors.primary, colors.textPrimary, colors.textSecondary]);
 
   const goHeng36 = React.useCallback(() => {
-    const targetUrl = themeName === 'max56' ? 'https://max-56.com' : 'https://heng-36z.com/'
+    const targetUrl = theme?.url || 'https://heng-36z.com/'
     
     // ✅ เปิดในแท็บใหม่แทนการ redirect ทั้งหน้า เพื่อไม่ให้ auth state เปลี่ยน
     try {
@@ -330,20 +496,36 @@ const modalTextStyles = React.useMemo(() => {
       link.click()
       document.body.removeChild(link)
     }
-  }, [themeName])
+  }, [theme?.url, themeName])
   // ✅ แสดงชื่อธีมตาม branding
   const getThemeDisplayName = () => {
-    switch (themeName) {
-      case 'max56':
-        return 'MAX56'
-      case 'jeed24':
-        return 'JEED24'
-      case 'heng36':
-      default:
-        return 'HENG36'
-    }
+    // ใช้ branding.title หรือ displayName จาก theme config
+    return theme?.branding?.title?.replace(' PARTY', '') || theme?.displayName?.replace(' PARTY', '') || 'HENG36'
   }
   const goButtonLabel = `ไปที่ ${getThemeDisplayName()}`
+
+  const getAnnounceConditionUserCount = React.useCallback(async () => {
+    const announceData = (game as any)?.announce
+    if (!announceData) return 0
+
+    const documentUsersCount = Array.isArray(announceData.users) ? announceData.users.length : 0
+    const documentBonusesCount = Array.isArray(announceData.userBonuses) ? announceData.userBonuses.length : 0
+    const processedItemsCount = announceData.processedItems && typeof announceData.processedItems === 'object'
+      ? Object.keys(announceData.processedItems).length
+      : 0
+    const fallbackCount = Math.max(documentUsersCount, documentBonusesCount, processedItemsCount)
+
+    if (announceData._useSubcollection === true && id) {
+      const subcollectionCount = await getAnnounceUsersCount(id, themeName)
+      if (subcollectionCount > 0) return subcollectionCount
+
+      // fallback เผื่อ count aggregate ใช้งานไม่ได้ในบาง environment
+      const subcollectionUsers = await getAnnounceUsersFromSubcollection(id, themeName, { maxUsers: 20000 })
+      if (subcollectionUsers.length > 0) return subcollectionUsers.length
+    }
+
+    return fallbackCount
+  }, [game, id, themeName])
 
   // หัวข้อ+คำอธิบายสำหรับ popup กรอกชื่อ (แตกต่างตามประเภทเกม)
 const needTitle =
@@ -353,8 +535,8 @@ const needTitle =
 
 const needSubtitle =
   game?.type === 'เกมประกาศรางวัล'
-    ? 'กรอกยูสเซอร์เว็บ HENG36 ของคุณ เพื่อเช็คสิทธิ์รับโบนัสประจำเดือน'
-    : 'ใช้ยูสเซอร์ของเว็บ HENG36 เท่านั้น'
+    ? `กรอกยูสเซอร์เว็บ ${getThemeDisplayName()} ของคุณ เพื่อเช็คสิทธิ์รับโบนัสประจำเดือน`
+    : `ใช้ยูสเซอร์ของเว็บ ${getThemeDisplayName()} เท่านั้น`
 
   // อ่านสถานะโค้ด: รองรับ codes เป็น array/object และนับ "แจกจริง" จาก claimedBy
   const getCodeState = (g: any) => {
@@ -383,48 +565,61 @@ const needSubtitle =
     return { total, used, cursor: progress, claimedBy: rawClaimed };
   };
 
-    // ✅ OPTIMIZED: getPrevAnswer - ใช้ cache
+    // ✅ OPTIMIZED: getPrevAnswer - query โดยตรงด้วย userId (รองรับเกินลิมิต 100)
     const getPrevAnswer = async (gameId: string, player: string) => {
       const answersIndexCacheKey = `answersIndex:${gameId}:${player}`
       let v = dataCache.get<any>(answersIndexCacheKey)
-      
+
       if (!v) {
-        // Use PostgreSQL adapter if available
         try {
-          const answers = await postgresqlAdapter.getAnswers(gameId, 100)
-          const playerAnswers = answers.filter((a: any) => a.userId === player)
-          if (playerAnswers.length > 0) {
-            const latestAnswer = playerAnswers.sort((a: any, b: any) => 
-              (b.ts || 0) - (a.ts || 0)
-            )[0]
+          // ใช้ query ตรงตาม userId เพื่อให้ได้คำตอบล่าสุดของผู้ใช้
+          // แม้จะมีผู้เล่นอื่นส่งคำตอบทีหลังเกิน 100 คนก็ตาม
+          const latest = await getUserLatestAnswer(gameId, player)
+          if (latest) {
             v = {
-              answer: latestAnswer.answer,
-              code: latestAnswer.code,
-              correct: latestAnswer.correct,
-              ts: latestAnswer.ts
+              answer: latest.answer,
+              code: latest.code,
+              correct: latest.correct,
+              ts: latest.createdAt?.toMillis?.() || latest.createdAt || 0,
             }
-            // Cache ไว้ 2 นาที
             dataCache.set(answersIndexCacheKey, v, 2 * 60 * 1000)
           } else {
-            return null
+            // Fallback สำหรับเกมที่ยังใช้โครงสร้างเก่า (answers ไม่มี userId filter index)
+            const answers = await getAnswers(gameId, 1000)
+            const playerAnswers = answers.filter((a: any) => a.userId === player)
+            if (playerAnswers.length > 0) {
+              const latestAnswer = playerAnswers.sort((a: any, b: any) => {
+                const aTs = a.createdAt?.toMillis?.() || a.createdAt || a.ts || 0
+                const bTs = b.createdAt?.toMillis?.() || b.createdAt || b.ts || 0
+                return bTs - aTs
+              })[0]
+              v = {
+                answer: latestAnswer.answer,
+                code: latestAnswer.code,
+                correct: latestAnswer.correct,
+                ts: latestAnswer.createdAt?.toMillis?.() || latestAnswer.createdAt || latestAnswer.ts || 0,
+              }
+              dataCache.set(answersIndexCacheKey, v, 2 * 60 * 1000)
+            } else {
+              return null
+            }
           }
         } catch (error) {
-          console.error('Error fetching answers from PostgreSQL:', error)
-          // ✅ No Firebase fallback - PostgreSQL only
+          console.error('Error fetching previous answer:', error)
           return null
         }
       }
-      
-      // รองรับทั้ง { answer: '...' } หรือเป็นสตริงตรงๆ
+
       return typeof v === 'string' ? v : (v.answer ?? null)
     }
 
 const parseFootballAnswer = (raw: string): { home: number; away: number } | null => {
   if (!raw) return null;
-  const match = raw.match(/(\d+)\s*[-–]\s*(\d+)/);
-  if (!match) return null;
-  const home = Number(match[1]);
-  const away = Number(match[2]);
+  const matches = Array.from(raw.matchAll(/(\d{1,2})\s*[-–]\s*(\d{1,2})/g));
+  if (matches.length === 0) return null;
+  const m = matches[matches.length - 1];
+  const home = Number(m[1]);
+  const away = Number(m[2]);
   if (Number.isNaN(home) || Number.isNaN(away)) return null;
   return { home, away };
 };
@@ -447,14 +642,14 @@ const prettifyNumberLabel = (raw?: string | null) => {
   // ✅ SOLD OUT popup (แบบไม่ใช้ useEffect): คำนวณเงื่อนไขและแสดงป๊อปอัปเมื่อเรนเดอร์
 const showAutoSoldOut =
   !!game &&
-  game.type === 'เกมทายภาพปริศนา' &&
+  (game.type === 'เกมทายภาพปริศนา' || game.type === 'เกมปาร์ตี้') &&
   !needName &&                 // ต้องผ่านหน้ากรอกชื่อแล้ว
   !modal.open &&               // ถ้ามี popup อื่นเปิดอยู่ ไม่ทับ
   !autoSoldOutDismissed &&     // กดปิดไปแล้ว ไม่เด้งซ้ำ
   (() => {
     const { total, cursor, claimedBy } = getCodeState(game);
     if (total === 0) return false; // ไม่ได้ตั้งช่องโค้ด → ไม่ถือว่าหมด
-    const meRaw = localStorage.getItem('player_name') || username || '';
+    const meRaw = getCachedPlayerName() || username || '';
     const me = normalizeUser(meRaw);
     const hasMyCode = !!(me && (claimedBy?.[me]?.code || claimedBy?.[me]));
     // ถ้าโค้ดหมด และผู้เล่นรายนี้ยังไม่เคยได้โค้ด → ถือว่า sold out
@@ -473,27 +668,23 @@ const showAutoSoldOut =
     
     // ✅ ป้องกันไม่ให้ reset needName ถ้า username มีค่าแล้ว (ผู้ใช้ login แล้ว)
     // เพื่อป้องกันกรณีที่ game.updatedAt เปลี่ยนหลังจาก claim code สำเร็จ
-    if (!isHost && username && username.trim()) {
+    if (username && username.trim()) {
       return // ไม่ reset needName ถ้า username มีค่าแล้ว
     }
-    
-    // ✅ สำหรับ HOST: ใช้ username ตามธีม
-    if (isHost) {
-      const hostUsername = getHostUsername()
-      setUsername(hostUsername)
-      setNeedName(false)
-      localStorage.setItem('player_name', hostUsername)
-    } else {
-      // ✅ ไม่โหลด username จาก localStorage - ให้ login ใหม่ทุกครั้งที่เปลี่ยนเกมหรือ refresh
-      // แต่ถ้า username มีค่าแล้ว (จาก state) ไม่ต้อง reset
-      if (!username || !username.trim()) {
+
+    if (!username || !username.trim()) {
+      const cached = getCachedPlayerName()
+      if (cached) {
+        setUsername(cached)
+        setNeedName(false)
+      } else {
         setUsername('')
         setNeedName(true)
       }
     }
     setExpiredShown(false)
     setRuntimeExpired(false)
-  }, [id, game?.type, (game as any)?.updatedAt, isHost, modal.open, (modal as any).kind, username])
+  }, [id, game?.type, (game as any)?.updatedAt, modal.open, (modal as any).kind, username])
 
   /** ล็อกสกอลล์เมื่อมีป๊อปอัป/กรอกยูส */
   React.useEffect(() => {
@@ -508,7 +699,7 @@ const showAutoSoldOut =
     const soldOut = /โค้ด(เต็ม|หมด)|code\s*(full|out)/i.test(`${title} ${message}`)
     if (soldOut) {
       // ไม่ต้องเช็ค soldOutGuardRef สำหรับโค้ดเต็ม เพราะเป็นสถานการณ์ปกติ
-      setModal({ open:true, kind:'codes-empty', title:'🎉 โค้ดเต็มแล้วค่ะ', message:'ขออภัยค่ะ โค้ดรางวัลในเกมนี้ได้ถูกแจกหมดแล้ว\n\nรอติดตามกิจกรรมรอบหน้าค่ะ! 🎮' })
+      setModal({ open:true, kind:'codes-empty', title:'โค้ดเต็มแล้วค่ะ', message:'ขออภัยค่ะ โค้ดรางวัลในเกมนี้ได้ถูกแจกหมดแล้ว\n\nรอติดตามกิจกรรมรอบหน้าค่ะ!' })
       return
     }
     setModal({ open:true, kind:'info', title, message })
@@ -517,6 +708,7 @@ const showAutoSoldOut =
   const isLocked = (g: GameData) => (g.locked === true) || (g.unlocked === false)
   const isExpired = (g: GameData) => {
     const now = Date.now()
+    // เกมบอลโลกใช้กลไกล็อกรายคู่ตามเวลา kickoff ภายในคอมโพเนนต์ — ไม่ใช้ deadline รวม
     const t = g.numberPick?.endAt ?? g.football?.endAt ?? null
     return !!(t && now > t)
   }
@@ -558,32 +750,12 @@ React.useEffect(() => {
         setInitialFootballGuess(parsed);
         setLastFootballGuessText(`${homeName} ${parsed.home} - ${parsed.away} ${awayName}`);
         setLastFootballGuessLoaded(true);
+        footballGuessShownRef.current = true;
       } else if (!footballGuessShownRef.current) {
         footballGuessShownRef.current = true;
         setInitialFootballGuess(null);
         setLastFootballGuessText(prev);
         setLastFootballGuessLoaded(true);
-        const who = username.trim() || 'คุณ';
-        const title = expired ? 'เกมจบลงแล้ว' : 'สกอร์ที่คุณเคยทายไว้';
-        if (expired) {
-          setModal({
-            open: true,
-            kind: 'saved',
-            title,
-            message: '',
-            extra: {
-              user: username,
-              answer: prev || 'ยังไม่ได้ทายสกอร์ไว้ค่ะ',
-            },
-          });
-        } else {
-          setModal({
-            open: true,
-            kind: 'info',
-            title,
-            message: prev,
-          });
-        }
       }
     } catch (error) {
       console.error('Failed to load previous football guess', error);
@@ -622,30 +794,6 @@ React.useEffect(() => {
       const value = parseNumberGuess(prev) || prev;
       setLastNumberGuess(prev);
       setLastNumberGuessLoaded(true);
-      if (!expired && !numberGuessShownRef.current) {
-        numberGuessShownRef.current = true;
-        const primaryBg = `linear-gradient(135deg, ${hexToRgba(colors.primary, 0.05)} 0%, ${hexToRgba(colors.primary, 0.18)} 100%)`;
-        const primaryShadow = `0 8px 22px ${hexToRgba(colors.primary, 0.25)}`;
-        setModal({
-          open: true,
-          kind: 'saved',
-          title: 'เบอร์เงินที่คุณเคยทายไว้',
-          message: '',
-          extra: {
-            user: username,
-            number: {
-              value,
-              label: prettifyNumberLabel(prev) || `เบอร์เงินที่ทาย: ${value}`,
-              primaryBg,
-              primaryShadow,
-            },
-            actions: {
-              showRetake: true,
-              onRetake: () => setModal({ open: false }),
-            },
-          },
-        });
-      }
     } catch (error) {
       console.error('Failed to load previous number guess', error);
       setLastNumberGuessLoaded(true);
@@ -687,41 +835,6 @@ const renderModalHeader = React.useCallback(
   [colors.danger, colors.primary, colors.textInverse]
 );
 
-const handleFootballGuessShown = React.useCallback((guess: { home: number; away: number }) => {
-  if (footballGuessShownRef.current) return;
-  footballGuessShownRef.current = true;
-  const hName = game?.football?.homeTeam || 'ทีมเหย้า';
-  const aName = game?.football?.awayTeam || 'ทีมเยือน';
-  const primary = colors.primary;
-  const danger = colors.danger;
-  const primaryBg = `linear-gradient(135deg, ${hexToRgba(primary, 0.05)} 0%, ${hexToRgba(primary, 0.18)} 100%)`;
-  const primaryShadow = `0 8px 22px ${hexToRgba(primary, 0.25)}`;
-  const dangerBg = `linear-gradient(135deg, ${hexToRgba(danger, 0.05)} 0%, ${hexToRgba(danger, 0.18)} 100%)`;
-  const dangerShadow = `0 8px 22px ${hexToRgba(danger, 0.25)}`;
-  const who = username.trim() || 'คุณ';
-  const title = expired ? 'เกมจบลงแล้ว' : 'สกอร์ที่คุณเคยทายไว้';
-  const scoreText = `${hName} ${guess.home} - ${guess.away} ${aName}`;
-  setLastFootballGuessText(scoreText);
-  setLastFootballGuessLoaded(true);
-  const message = expired
-    ? buildExpiredMessage(who, scoreText)
-    : '';
-  setModal({
-    open: true,
-    kind: 'saved',
-    title,
-    message,
-    extra: {
-      user: username,
-      football: { homeName: hName, awayName: aName, home: guess.home, away: guess.away, primaryBg, primaryShadow, dangerBg, dangerShadow },
-      actions: {
-        showRetake: true,
-        onRetake: () => setModal({ open: false }),
-      },
-      ...(expired ? { html: true } : {}),
-    },
-  });
-}, [buildExpiredMessage, colors.danger, colors.primary, expired, game?.football?.homeTeam, game?.football?.awayTeam, setModal, username]);
 
   // ✅ ดึงข้อมูล user status เมื่อ username ถูกตั้งค่าแล้ว (ไม่ใช่ตอนพิมพ์)
   // ✅ เรียกแค่ตอนที่ needName = false (user login แล้ว)
@@ -734,8 +847,8 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
     const key = normalizeUser(username)
     const fetchUserStatus = async () => {
       try {
-        // ✅ ใช้ PostgreSQL adapter 100%
-        const userData = await postgresqlAdapter.getUserData(key)
+        // ✅ ใช้ Firestore 100%
+        const userData = await getUser(key)
         
         if (userData) {
           setUserStatus(userData.status || null)
@@ -750,6 +863,66 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
 
     fetchUserStatus()
   }, [username, needName]) // ✅ เพิ่ม needName ใน dependency
+
+  React.useEffect(() => {
+    if (!game || game.type !== 'เกมประกาศรางวัล' || needName || !username.trim()) return
+    if (announceBonus) return
+
+    const key = normalizeUser(username)
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        let has = false
+        let myBonus = 0
+        const useSubcollection = (game as any)?.announce?._useSubcollection === true
+
+        if (useSubcollection && id) {
+          try {
+            has = await checkUserInAnnounceUsers(id, key, themeName)
+            if (has) {
+              const bd = await getUserBonusFromSubcollection(id, key, themeName)
+              myBonus = bd?.bonus || 0
+            }
+          } catch {
+            const list = Array.isArray((game as any)?.announce?.users) ? (game as any).announce.users : []
+            const userBonuses = Array.isArray((game as any)?.announce?.userBonuses) ? (game as any).announce.userBonuses : []
+            has = new Set(list.map((u: any) => normalizeUser(String(u || '')))).has(key)
+            if (has) {
+              const found = userBonuses.find((item: any) => normalizeUser(item.user) === key)
+              myBonus = found?.bonus || 0
+            }
+          }
+        } else {
+          const list = Array.isArray((game as any)?.announce?.users) ? (game as any).announce.users : []
+          const userBonuses = Array.isArray((game as any)?.announce?.userBonuses) ? (game as any).announce.userBonuses : []
+          has = new Set(list.map((u: any) => normalizeUser(String(u || '')))).has(key)
+          if (has) {
+            const found = userBonuses.find((item: any) => normalizeUser(item.user) === key)
+            myBonus = found?.bonus || 0
+          }
+        }
+
+        if (cancelled) return
+
+        if (has) {
+          setAnnounceBonus({ user: key, bonus: myBonus, eligible: true })
+        } else {
+          const announceUserCount = await getAnnounceConditionUserCount()
+          const conditionUserText = announceUserCount > 0
+            ? `ยอดฝากสูงสุด ${announceUserCount.toLocaleString()} USER`
+            : 'ตามเงื่อนไขที่กำหนด'
+          if (!cancelled) {
+            setAnnounceBonus({ user: key, bonus: 0, eligible: false, conditionText: conditionUserText })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to re-check announce bonus:', error)
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [game, id, needName, username, announceBonus, themeName, getAnnounceConditionUserCount])
 
   /** เด้ง "หมดเวลาเล่น" ทันทีถ้าโหลดมาแล้วหมดเวลา */
   React.useEffect(() => {
@@ -770,25 +943,26 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
         const primaryShadow = `0 8px 22px ${hexToRgba(colors.primary, 0.25)}`
         const dangerBg = `linear-gradient(135deg, ${hexToRgba(colors.danger, 0.05)} 0%, ${hexToRgba(colors.danger, 0.18)} 100%)`
         const dangerShadow = `0 8px 22px ${hexToRgba(colors.danger, 0.25)}`
-        const extra =
-          initialFootballGuess != null
-            ? {
-                user: username,
-                football: {
-                  homeName,
-                  awayName,
-                  home: initialFootballGuess.home,
-                  away: initialFootballGuess.away,
-                  primaryBg,
-                  primaryShadow,
-                  dangerBg,
-                  dangerShadow,
-                },
-              }
-            : {
-                user: username,
-                answer: lastFootballGuessText || 'ยังไม่ได้ทายสกอร์ไว้ค่ะ',
-              }
+        const parsedFromText = lastFootballGuessText ? parseFootballAnswer(lastFootballGuessText) : null
+        const effectiveGuess = initialFootballGuess ?? parsedFromText
+        const extra = effectiveGuess
+          ? {
+              user: username,
+              football: {
+                homeName,
+                awayName,
+                home: effectiveGuess.home,
+                away: effectiveGuess.away,
+                primaryBg,
+                primaryShadow,
+                dangerBg,
+                dangerShadow,
+              },
+            }
+          : {
+              user: username,
+              answer: lastFootballGuessText || 'ยังไม่ได้ทายสกอร์ไว้ค่ะ',
+            }
         setModal({
           open: true,
           kind: 'saved',
@@ -833,7 +1007,7 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
           extra: { html: true },
         })
       }
-      setRedirectOnOk('heng36')
+      setRedirectOnOk('redirect')
     }
   }, [
     buildExpiredMessage,
@@ -872,10 +1046,10 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
   const openCode = React.useCallback((code: string) => {
     soldOutGuardRef.current = true       // กัน onInfo ยิงโค้ดเต็มตามมา
     setIgnoreSoldOutOnce(true)           // กัน useEffect ยิงทับในเฟรมเดียวกัน
-    setModal({ open:true, kind:'code', title:'🎊 ยินดีด้วย! คำตอบถูกต้อง', message:'คุณตอบถูกแล้ว! นี่คือโค้ดรางวัลของคุณ ✨', code })
+    setModal({ open:true, kind:'code', title:'ยินดีด้วย! คำตอบถูกต้อง', message:'คุณตอบถูกแล้ว! นี่คือโค้ดรางวัลของคุณ', code })
   }, [])
 
-  // ✅ ตรวจสอบ USER และ PASSWORD จาก PostgreSQL
+  // ✅ ตรวจสอบ USER และ PASSWORD จาก Firestore
   const saveName = async () => {
   const raw = username
   const key = normalizeUser(raw)
@@ -888,15 +1062,35 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
       setModal({ 
         open: true, 
         kind: 'info', 
-        title: '⚠️ กรุณากรอก USER', 
+        title: 'กรุณากรอก USER', 
         message: 'กรุณากรอก USER ให้ถูกต้อง' 
       })
       return
     }
+
+    // 🚫 Blacklist check
+    try {
+      const blocked = await isBlacklisted(key)
+      if (blocked) {
+        setModal({
+          open: true,
+          kind: 'info',
+          title: '🚫 USER ถูก BLACKLIST',
+          message: `USER "${raw}" ถูกระงับการใช้งาน\nไม่สามารถเข้าร่วมเกมได้\n\nหากมีข้อสงสัยกรุณาติดต่อแอดมิน`
+        })
+        setUsername('')
+        setPassword('')
+        clearCachedPlayerName()
+        return
+      }
+    } catch (e) {
+      console.error('[GamePlay] blacklist check error:', e)
+    }
+
     // ✅ เกมเช็คอิน: ใช้ USER+PASSWORD จาก USERS_EXTRA (เดิมของคุณ)
     if (game?.type === 'เกมเช็คอิน') {
       if (!password.trim()) {
-        setModal({ open: true, kind: 'info', title: '🔐 กรอกรหัสผ่าน', message: 'กรุณากรอกรหัสผ่านให้ครบถ้วนเพื่อเข้าสู่ระบบ' })
+        setModal({ open: true, kind: 'info', title: 'กรอกรหัสผ่าน', message: 'กรุณากรอกรหัสผ่านให้ครบถ้วนเพื่อเข้าสู่ระบบ' })
         return
       }
       
@@ -914,7 +1108,7 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
           })
           setUsername('')
           setPassword('')
-          localStorage.removeItem('player_name')
+          clearCachedPlayerName()
           return
         }
       }
@@ -933,24 +1127,24 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
           })
           setUsername('')
           setPassword('')
-          localStorage.removeItem('player_name')
+          clearCachedPlayerName()
           return
         }
       }
       
-      // ✅ ใช้ PostgreSQL adapter 100%
-      const userData = await postgresqlAdapter.getUserData(key)
+      // ✅ ใช้ Firestore 100%
+      const userData = await getUser(key)
       
       if (!userData) {
         setModal({
           open: true,
           kind: 'info',
-          title: '👤 ไม่พบ USER ในระบบ',
+          title: 'ไม่พบ USER ในระบบ',
           message: `ไม่พบ USER "${raw}" ในระบบ\nกรุณาตรวจสอบการสะกดและลองใหม่อีกครั้ง`
         })
         setUsername('')
         setPassword('')
-        localStorage.removeItem('player_name')
+        clearCachedPlayerName()
         return
       }
       
@@ -959,26 +1153,19 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
         setModal({ 
           open: true, 
           kind: 'info', 
-          title: '❌ รหัสผ่านไม่ถูกต้อง', 
-          message: 'รหัสผ่านที่กรอกไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง' 
+          title: 'รหัสผ่านไม่ถูกต้อง', 
+          message: 'รหัสผ่านที่กรอกไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
+          extra: { showCancel: true }
         })
         setPassword('')
         return
       }
 
 
-      localStorage.setItem('player_name', key)
+      setCachedPlayerName(key)
       setUsername(key)
       setNeedName(false)
       
-      return
-    }
-
-    // ✅ เกม BINGO: สำหรับ HOST ข้ามการตรวจสอบ login
-    if (game?.type === 'เกม BINGO' && isHost) {
-      localStorage.setItem('player_name', key)
-      setUsername(key)
-      setNeedName(false)
       return
     }
 
@@ -998,68 +1185,92 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
           })
           setUsername('')
           setPassword('')
-          localStorage.removeItem('player_name')
+          clearCachedPlayerName()
           return
         }
       }
       
-        const list: string[] = Array.isArray((game as any)?.announce?.users)
-          ? (game as any).announce.users
-          : []
-        const userBonuses: Array<{ user: string; bonus: number }> = Array.isArray((game as any)?.announce?.userBonuses)
-          ? (game as any).announce.userBonuses
-          : []
+        // ✅ OPTIMIZED: ตรวจสอบ user เฉพาะโดยไม่ต้องโหลดทั้งหมด (รองรับ 20000+ users)
+        let has = false
+        let myBonus = 0
         
-        const has = new Set(list.map((u) => normalizeUser(String(u || '')))).has(key)
+        // ✅ ตรวจสอบว่ามี flag _useSubcollection หรือไม่
+        const useSubcollection = (game as any)?.announce?._useSubcollection === true
+        
+        if (useSubcollection && id) {
+          // ✅ ใช้ subcollection - query user เฉพาะ (OPTIMIZED)
+          try {
+            // ✅ ตรวจสอบว่า user อยู่ในรายชื่อหรือไม่ (query เฉพาะ user)
+            has = await checkUserInAnnounceUsers(id, key, themeName)
+            
+            // ✅ ถ้า user อยู่ในรายชื่อ ให้หา bonus (query เฉพาะ user)
+            if (has) {
+              const bonusData = await getUserBonusFromSubcollection(id, key, themeName)
+              myBonus = bonusData?.bonus || 0
+            }
+          } catch {
+            // Fallback to document (backward compatible)
+            const list = Array.isArray((game as any)?.announce?.users)
+              ? (game as any).announce.users
+              : []
+            const userBonuses = Array.isArray((game as any)?.announce?.userBonuses)
+              ? (game as any).announce.userBonuses
+              : []
+            
+            has = new Set(list.map((u: any) => normalizeUser(String(u || '')))).has(key)
+            if (has) {
+              const myBonusData = userBonuses.find((item: any) => normalizeUser(item.user) === key)
+              myBonus = myBonusData?.bonus || 0
+            }
+          }
+        } else {
+          // ✅ อ่านจาก document (backward compatible)
+          const list = Array.isArray((game as any)?.announce?.users)
+            ? (game as any).announce.users
+            : []
+          const userBonuses = Array.isArray((game as any)?.announce?.userBonuses)
+            ? (game as any).announce.userBonuses
+            : []
+          
+          has = new Set(list.map((u: any) => normalizeUser(String(u || '')))).has(key)
+          if (has) {
+            const myBonusData = userBonuses.find((item: any) => normalizeUser(item.user) === key)
+            myBonus = myBonusData?.bonus || 0
+          }
+        }
 
         if (!has) {
-          // สร้างข้อความตามธีม
-          let message = ''
-          if (themeName === 'max56') {
-            message = `ลูกค้ายังไม่เข้าเงื่อนไขที่ได้รับ รางวัลประจำเดือนนะคะ\n\nเงื่อนไข ต้องมียอดฝากสูงสุด 3,000 USER ของ MAX56 นะคะ\n\nไม่เป็นไรน้า เดือนหน้ายังมีลุ้นนะคะ\nติดตามกิจกรรมในกลุ่มเทเลแกรม MAX56 ได้ตลอดเลยนะคะ`
-          } else if (themeName === 'jeed24') {
-            message = `ลูกค้ายังไม่เข้าเงื่อนไขที่ได้รับ รางวัลประจำเดือนนะคะ\n\nเงื่อนไข ต้องมียอดฝากสูงสุด 20,000 USER ของ JEED24 นะคะ\n\nไม่เป็นไรน้า เดือนหน้ายังมีลุ้นนะคะ\nติดตามกิจกรรมในกลุ่มเทเลแกรม JEED24 ได้ตลอดเลยนะคะ`
-          } else {
-            // HENG36 (default)
-            message = `ลูกค้ายังไม่เข้าเงื่อนไขที่ได้รับ รางวัลประจำเดือนนะคะ\n\nเงื่อนไข ต้องมียอดฝากสูงสุด 20,000 USER ของ HENG36 นะคะ\n\nไม่เป็นไรน้า เดือนหน้ายังมีลุ้นนะคะ\nติดตามกิจกรรมในกลุ่มเทเลแกรม HENG36 ได้ตลอดเลยนะคะ`
-          }
-          
-          setModal({
-            open: true,
-            kind: 'info',
-            title: 'ไม่เข้าเงื่อนไข',
-            message: message
-          })
-          setUsername('')
-          setPassword('')
-          localStorage.removeItem('player_name')
+          const announceUserCount = await getAnnounceConditionUserCount()
+          const conditionUserText = announceUserCount > 0
+            ? `ยอดฝากสูงสุด ${announceUserCount.toLocaleString()} USER`
+            : 'ตามเงื่อนไขที่กำหนด'
+
+          setCachedPlayerName(key)
+          setUsername(key)
+          setNeedName(false)
+          setAnnounceBonus({ user: key, bonus: 0, eligible: false, conditionText: conditionUserText })
           return
         }
 
-        // หาข้อมูล BONUS ของผู้เล่นปัจจุบัน
-        const myBonusData = userBonuses.find(item => normalizeUser(item.user) === key)
-        const myBonus = myBonusData?.bonus || 0
-
-        // ผ่าน → บันทึกชื่อ แล้วแสดงข้อมูลในหน้าเกม
-        localStorage.setItem('player_name', key)
+        setCachedPlayerName(key)
         setUsername(key)
         setNeedName(false)
-        
-        // เก็บข้อมูลโบนัสเพื่อแสดงในหน้า
-        setAnnounceBonus({ user: key, bonus: myBonus })
+        setAnnounceBonus({ user: key, bonus: myBonus, eligible: true })
         return
       }
 
-
-    // ✅ เกมสล็อต, เกมทายภาพปริศนา, เกมทายเบอร์เงิน, เกมทายผลบอล, เกม Trick or Treat, เกมลอยกระทง, เกม BINGO: ตรวจจาก USERS_EXTRA แต่ไม่ต้องมี status ACTIVE
+    // ✅ เกมสล็อต, เกมทายภาพปริศนา, เกมทายเบอร์เงิน, เกมทายผลบอล, เกมบอลโลก, เกมลุ้นรางวัลพิเศษ, เกมลอยกระทง, เกมแนะนำเพื่อน, เกมป๊อกเด้ง: ตรวจจาก USERS_EXTRA แต่ไม่ต้องมี status ACTIVE
     if (
       game?.type === 'เกมสล็อต' ||
       game?.type === 'เกมทายภาพปริศนา' ||
+      game?.type === 'เกมปาร์ตี้' ||
       game?.type === 'เกมทายเบอร์เงิน' ||
       game?.type === 'เกมทายผลบอล' ||
-      game?.type === 'เกม Trick or Treat' ||
+      game?.type === 'เกมบอลโลก' ||
+      game?.type === 'เกมลุ้นรางวัลพิเศษ' ||
       game?.type === 'เกมลอยกระทง' ||
-      game?.type === 'เกม BINGO'
+      game?.type === 'เกมแนะนำเพื่อน' ||
+      game?.type === 'เกมป๊อกเด้ง'
     ) {
       // ตรวจสอบสิทธิ์ USER เข้าเล่นเกม
       if (game?.userAccessType === 'selected' && game?.selectedUsers && Array.isArray(game.selectedUsers) && game.selectedUsers.length > 0) {
@@ -1075,7 +1286,7 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
           })
           setUsername('')
           setPassword('')
-          localStorage.removeItem('player_name')
+          clearCachedPlayerName()
           return
         }
       }
@@ -1084,25 +1295,25 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
         setModal({ 
           open: true, 
           kind: 'info', 
-          title: '🔐 กรอกรหัสผ่าน', 
+          title: 'กรอกรหัสผ่าน', 
           message: 'กรุณากรอกรหัสผ่านให้ครบถ้วนเพื่อเข้าสู่ระบบ' 
         })
         return
       }
       
-      // ✅ ใช้ PostgreSQL adapter 100%
-      const userData = await postgresqlAdapter.getUserData(key)
+      // ✅ ใช้ Firestore 100%
+      const userData = await getUser(key)
       
       if (!userData) {
         setModal({
           open: true,
           kind: 'info',
-          title: '👤 ไม่พบ USER ในระบบ',
+          title: 'ไม่พบ USER ในระบบ',
           message: `ไม่พบ USER "${key}" ในระบบ\nกรุณาตรวจสอบการสะกดและลองใหม่อีกครั้ง`
         })
         setUsername('')
         setPassword('')
-        localStorage.removeItem('player_name')
+        clearCachedPlayerName()
         return
       }
       
@@ -1121,7 +1332,7 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
         })
         setUsername('')
         setPassword('')
-        localStorage.removeItem('player_name')
+        clearCachedPlayerName()
         return
       }
       
@@ -1131,14 +1342,15 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
         setModal({ 
           open: true, 
           kind: 'info', 
-          title: '❌ รหัสผ่านไม่ถูกต้อง', 
-          message: 'รหัสผ่านที่กรอกไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง' 
+          title: 'รหัสผ่านไม่ถูกต้อง', 
+          message: 'รหัสผ่านที่กรอกไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
+          extra: { showCancel: true }
         })
         setPassword('')
         return
       }
 
-      localStorage.setItem('player_name', key)
+      setCachedPlayerName(key)
       setUsername(key)
       setNeedName(false)
       return
@@ -1158,61 +1370,65 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
           message: `USER : ${key}\nไม่มีสิทธิ์เข้าเล่นเกมนี้\nเฉพาะ USER ที่เลือกไว้เท่านั้นที่สามารถเข้าเล่นได้`
         })
         setUsername('')
-        localStorage.removeItem('player_name')
+        clearCachedPlayerName()
         return
       }
     }
     
-    // ✅ ใช้ PostgreSQL adapter 100%
-    const userData = await postgresqlAdapter.getUserData(key)
+      // ✅ ใช้ Firestore 100%
+    const userData = await getUser(key)
     
     if (!userData) {
       setModal({ 
         open: true, 
         kind: 'info', 
-        title: '👤 ไม่พบ USER ในระบบ', 
+        title: 'ไม่พบ USER ในระบบ', 
         message: `ไม่พบ USER "${raw}" ในระบบ\nกรุณาตรวจสอบการสะกดและลองใหม่อีกครั้ง` 
       })
       setUsername('')
       setPassword('')
-      localStorage.removeItem('player_name')
+      clearCachedPlayerName()
       return
     }
 
-    // ✅ ตรวจสอบรหัสผ่าน (สำหรับเกมที่ต้องการ password)
-    if (game?.type !== 'เกมประกาศรางวัล') {
-      if (!password.trim()) {
-        setModal({ 
-          open: true, 
-          kind: 'info', 
-          title: '🔐 กรอกรหัสผ่าน', 
-          message: 'กรุณากรอกรหัสผ่านให้ครบถ้วนเพื่อเข้าสู่ระบบ' 
-        })
-        return
-      }
-      
-      const passInDb = String(userData.password ?? '')
-      if (!passInDb || password !== passInDb) {
-        setModal({ 
-          open: true, 
-          kind: 'info', 
-          title: '❌ รหัสผ่านไม่ถูกต้อง', 
-          message: 'รหัสผ่านที่กรอกไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง' 
-        })
-        setPassword('')
-        return
-      }
+    // ✅ ตรวจสอบรหัสผ่าน
+    if (!password.trim()) {
+      setModal({ 
+        open: true, 
+        kind: 'info', 
+        title: 'กรอกรหัสผ่าน', 
+        message: 'กรุณากรอกรหัสผ่านให้ครบถ้วนเพื่อเข้าสู่ระบบ' 
+      })
+      return
+    }
+    
+    const passInDb = String(userData.password ?? '')
+    if (!passInDb || password !== passInDb) {
+      setModal({ 
+        open: true, 
+        kind: 'info', 
+        title: 'รหัสผ่านไม่ถูกต้อง', 
+        message: 'รหัสผ่านที่กรอกไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
+        extra: { showCancel: true }
+      })
+      setPassword('')
+      return
     }
 
-    // ✅ เช็คซ้ำว่าเคยตอบแล้วไหม - ใช้ PostgreSQL
-    const shouldCheckDuplicate = !!game && !['เกมสล็อต', 'เกมทายผลบอล', 'เกมทายเบอร์เงิน'].includes(game.type)
+    // ✅ เช็คซ้ำว่าเคยตอบแล้วไหม - ใช้ Firestore
+    // เกมปาร์ตี้แบบหลายรอบ (มี ?round=R1/R2/...) ต้องแยกรอบ จึงไม่บล็อกจากรอบก่อนหน้า
+    const isPartyRoundMode = !!requestedRound && game?.type === 'เกมปาร์ตี้'
+    const shouldCheckDuplicate =
+      !!game &&
+      !isPartyRoundMode &&
+      !['เกมสล็อต', 'เกมทายผลบอล', 'เกมบอลโลก', 'เกมทายเบอร์เงิน', 'เกมทายภาพปริศนา', 'เกมปาร์ตี้'].includes(game.type)
     if (shouldCheckDuplicate) {
       const answersIndexCacheKey = `answersIndex:${game!.id}:${key}`
       let dupData = dataCache.get<any>(answersIndexCacheKey)
       
       if (!dupData) {
         try {
-          const answers = await postgresqlAdapter.getAnswers(game!.id, 100)
+          const answers = await getAnswers(game!.id, 100)
           const playerAnswers = answers.filter((a: any) => a.userId === key)
           if (playerAnswers.length > 0) {
             const latestAnswer = playerAnswers.sort((a: any, b: any) => 
@@ -1232,22 +1448,22 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
       
       if (dupData) {
         setNeedName(false)
-        setRedirectOnOk('heng36')
+        setRedirectOnOk('redirect')
         setModal({ 
           open: true, 
           kind: 'info', 
-          title: '⚠️ แจ้งเตือน', 
-          message: 'ยูสเซอร์นี้ได้ทำการตอบคำถามของวันนี้ไปแล้วค่ะ\n\nรอติดตามกิจกรรมในวันถัดไปนะคะ! 🎮' 
+          title: 'แจ้งเตือน', 
+          message: 'ยูสเซอร์นี้ได้ทำการตอบคำถามของวันนี้ไปแล้วค่ะ\n\nรอติดตามกิจกรรมในวันถัดไปนะคะ!' 
         })
         setUsername('')
         setPassword('')
-        localStorage.removeItem('player_name')
+        clearCachedPlayerName()
         return
       }
     }
 
     // ✅ Login สำเร็จ
-    localStorage.setItem('player_name', key)
+    setCachedPlayerName(key)
     setUsername(key)
     setPassword('') // ✅ Clear password after successful login
     setNeedName(false)
@@ -1256,7 +1472,7 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
     setModal({
       open: true,
       kind: 'info',
-      title: '⚠️ เกิดข้อผิดพลาด',
+      title: 'เกิดข้อผิดพลาด',
       message: error instanceof Error 
         ? `เกิดข้อผิดพลาด: ${error.message}\nกรุณาลองใหม่อีกครั้ง`
         : 'เกิดข้อผิดพลาดในการตรวจสอบข้อมูล\nกรุณาลองใหม่อีกครั้ง'
@@ -1280,7 +1496,7 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
       title: 'หมดเวลาเล่น',
       message: 'เกินกำหนดเวลาที่ตั้งไว้แล้ว',
     })
-    setRedirectOnOk('heng36')   // ⬅️ ให้ปุ่ม "ตกลง" ใช้ goHeng36
+    setRedirectOnOk('redirect')   // ⬅️ ให้ปุ่ม "ตกลง" ใช้ goHeng36
   }, [runtimeExpired])
 
   // ======= ฟังก์ชันส่งคำตอบ =======
@@ -1292,7 +1508,7 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
   if (isLocked(game)) { openInfo('ยังไม่เปิดให้เล่น', 'เกมนี้ยังถูกล็อกอยู่ โปรดติดต่อแอดมิน'); return; }
   if (runtimeExpired || (game.numberPick?.endAt && Date.now() > game.numberPick.endAt)) { 
     setModal({ open: true, kind: 'info', title: 'หมดเวลาเล่น', message: 'เกินกำหนดเวลาที่ตั้งไว้แล้ว' })
-    setRedirectOnOk('heng36')
+    setRedirectOnOk('redirect')
     return; 
   }
 
@@ -1309,8 +1525,8 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
     setModal({
       open: true,
       kind: 'confirm-replace',
-      title: 'ยืนยันเปลี่ยนคำตอบ',
-      message: 'ยูสเซอร์นี้มีคำตอบเดิมอยู่แล้ว ต้องการแทนที่หรือไม่?',
+      title: 'เปลี่ยนคำตอบ',
+      message: '',
       oldLabel: 'คำตอบเดิม',
       oldValue: String(prev),
       newLabel: 'คำตอบใหม่',
@@ -1320,14 +1536,14 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
         try {
           const ts = Date.now();
           
-          // ✅ ดึงคำตอบเดิมของยูสนี้จาก PostgreSQL
+          // ✅ ดึงคำตอบเดิมของยูสนี้จาก Firestore
           let oldAnswer = null;
           try {
             const answersIndexCacheKey = `answersIndex:${id}:${player}`
             let oldAnswerData = dataCache.get<any>(answersIndexCacheKey)
             
             if (!oldAnswerData) {
-              const answers = await postgresqlAdapter.getAnswers(id, 100)
+              const answers = await getAnswers(id, 100)
               const playerAnswers = answers.filter((a: any) => a.userId === player)
               if (playerAnswers.length > 0) {
                 const latestAnswer = playerAnswers.sort((a: any, b: any) => 
@@ -1349,10 +1565,8 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
             console.error('Error fetching previous answer:', error)
           }
           
-          // ✅ บันทึกคำตอบใหม่ผ่าน PostgreSQL
-          console.log('[submitNumberAnswer] Submitting answer (replace):', { gameId: id, userId: player, answer: newHuman });
-          const result = await postgresqlAdapter.submitAnswer(id, player, newHuman, false, undefined);
-          console.log('[submitNumberAnswer] Answer submitted successfully (replace):', result);
+          // ✅ บันทึกคำตอบใหม่ผ่าน Firestore
+          const result = await submitAnswer(id, player, { answer: newHuman, correct: false });
           
           const primaryBg = `linear-gradient(135deg, ${hexToRgba(colors.primary, 0.05)} 0%, ${hexToRgba(colors.primary, 0.18)} 100%)`;
           const primaryShadow = `0 8px 22px ${hexToRgba(colors.primary, 0.25)}`;
@@ -1365,7 +1579,7 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
             open: true,
             kind: 'saved',
             title: 'คุณได้เลือกคำตอบใหม่แล้ว',
-      message: `ยูสเซอร์: ${username}\n\n⚠️ กรุณาแคปหน้านี้ไว้เป็นหลักฐาน`,
+      message: `ยูสเซอร์: ${username}\n\nกรุณาแคปหน้านี้ไว้เป็นหลักฐาน`,
             extra: { 
               user: username, 
               answer: newHuman,
@@ -1395,12 +1609,10 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
     return;
   }
 
-  // ✅ ไม่มีคำตอบเดิม หรือเหมือนเดิม → บันทึกผ่าน PostgreSQL
+  // ✅ ไม่มีคำตอบเดิม หรือเหมือนเดิม → บันทึกผ่าน Firestore
   setSubmitting(true);
   try {
-    console.log('[submitNumberAnswer] Submitting answer:', { gameId: id, userId: player, answer: newHuman });
-    const result = await postgresqlAdapter.submitAnswer(id, player, newHuman, false, undefined);
-    console.log('[submitNumberAnswer] Answer submitted successfully:', result);
+    const result = await submitAnswer(id, player, { answer: newHuman, correct: false });
     
     const primaryBg = `linear-gradient(135deg, ${hexToRgba(colors.primary, 0.05)} 0%, ${hexToRgba(colors.primary, 0.18)} 100%)`;
     const primaryShadow = `0 8px 22px ${hexToRgba(colors.primary, 0.25)}`;
@@ -1412,7 +1624,7 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
       open: true,
       kind: 'saved',
       title: 'คุณได้เลือกคำตอบใหม่แล้ว',
-      message: `ยูสเซอร์: ${username}\nคำตอบที่เลือก: ${newHuman}\n\n⚠️ กรุณาแคปหน้านี้ไว้เป็นหลักฐาน`,
+      message: `ยูสเซอร์: ${username}\nคำตอบที่เลือก: ${newHuman}\n\nกรุณาแคปหน้านี้ไว้เป็นหลักฐาน`,
       extra: { 
         user: username, 
         answer: newHuman,
@@ -1440,12 +1652,24 @@ const handleFootballGuessShown = React.useCallback((guess: { home: number; away:
 
   /** เกมทายผลบอล (FootballGame) — รับคะแนนจากลูกแล้วบันทึกที่นี่ */
 const submitFootballFromChild = async (home: number, away: number) => {
-  if (!game) return;
-  if (needName || !username.trim()) { openInfo('ต้องใส่ชื่อก่อนเล่น', 'กรุณากรอกชื่อผู้เล่นเพื่อเริ่มเล่นเกม'); setNeedName(true); return; }
-  if (isLocked(game)) { openInfo('ยังไม่เปิดให้เล่น', 'เกมนี้ยังถูกล็อกอยู่ โปรดติดต่อแอดมิน'); return; }
+  if (!game) {
+    return;
+  }
+  
+  if (needName || !username.trim()) { 
+    openInfo('ต้องใส่ชื่อก่อนเล่น', 'กรุณากรอกชื่อผู้เล่นเพื่อเริ่มเล่นเกม'); 
+    setNeedName(true); 
+    return; 
+  }
+  
+  if (isLocked(game)) { 
+    openInfo('ยังไม่เปิดให้เล่น', 'เกมนี้ยังถูกล็อกอยู่ โปรดติดต่อแอดมิน'); 
+    return; 
+  }
+  
   if (runtimeExpired || (game.football?.endAt && Date.now() > game.football.endAt)) { 
     setModal({ open: true, kind: 'info', title: 'หมดเวลาเล่น', message: 'เกินกำหนดเวลาที่ตั้งไว้แล้ว' })
-    setRedirectOnOk('heng36')
+    setRedirectOnOk('redirect')
     return; 
   }
 
@@ -1465,50 +1689,69 @@ const submitFootballFromChild = async (home: number, away: number) => {
   const dangerShadow = `0 8px 22px ${hexToRgba(colors.danger, 0.25)}`;
 
   // เช็คคำตอบเดิมของยูสนี้ก่อน
-  const prev = await getPrevAnswer(id, player);
-  if (prev && prev !== human) {
-    setModal({
-      open: true,
-      kind: 'confirm-replace',
-      title: 'ยืนยันเปลี่ยนสกอร์',
-      message: 'ยูสเซอร์นี้มีสกอร์เดิมอยู่แล้ว ต้องการแทนที่หรือไม่?',
-      oldLabel: 'สกอร์เดิม',
-      oldValue: String(prev),
-      newLabel: 'สกอร์ใหม่',
-      newValue: human,
-      onConfirm: async () => {
-        setSubmitting(true);
-        try {
-          // ✅ บันทึกคำตอบใหม่ผ่าน PostgreSQL
-          await postgresqlAdapter.submitAnswer(id, player, human, false, undefined)
-          setInitialFootballGuess({ home: h, away: a });
-          footballGuessShownRef.current = true;
-          
-          setModal({
-            open: true,
-            kind: 'saved',
-            title: 'คุณอัปเดตสกอร์เรียบร้อย',
-            message: '',
-            extra: { 
-              user: username, 
-              football: { homeName: hName, awayName: aName, home: h, away: a, primaryBg: primaryBgGradient, primaryShadow, dangerBg: dangerBgGradient, dangerShadow },
-              oldAnswer: prev,  // เพิ่มคำตอบเก่า
-              newAnswer: human  // เพิ่มคำตอบใหม่
-            },
-          });
-        } finally {
-          setSubmitting(false);
-        }
-      },
-    });
-    return;
+  try {
+    const prev = await getPrevAnswer(id, player);
+    
+    if (prev && prev !== human) {
+      setModal({
+        open: true,
+        kind: 'confirm-replace',
+        title: 'เปลี่ยนสกอร์',
+        message: '',
+        oldLabel: 'สกอร์เดิม',
+        oldValue: String(prev),
+        newLabel: 'สกอร์ใหม่',
+        newValue: human,
+        onConfirm: async () => {
+          setSubmitting(true);
+          try {
+            // ✅ บันทึกคำตอบใหม่ผ่าน Firestore
+            await submitAnswer(id, player, { answer: human, correct: false })
+            // ✅ เคลียร์ cache เพื่อให้โหลดคำตอบใหม่ถูกต้องทันที
+            dataCache.delete(`answersIndex:${id}:${player}`);
+            dataCache.delete(`answers:${id}:100`);
+            setInitialFootballGuess({ home: h, away: a });
+            setLastFootballGuessText(human);
+            setLastFootballGuessLoaded(true);
+            footballGuessShownRef.current = true;
+            
+            setModal({
+              open: true,
+              kind: 'saved',
+              title: 'คุณอัปเดตสกอร์เรียบร้อย',
+              message: '',
+              extra: { 
+                user: username, 
+                football: { homeName: hName, awayName: aName, home: h, away: a, primaryBg: primaryBgGradient, primaryShadow, dangerBg: dangerBgGradient, dangerShadow },
+                oldAnswer: prev,  // เพิ่มคำตอบเก่า
+                newAnswer: human  // เพิ่มคำตอบใหม่
+              },
+            });
+          } catch (error) {
+            console.error('[submitFootballFromChild] Error submitting answer (replacement):', error);
+            openInfo('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกสกอร์ได้ กรุณาลองใหม่อีกครั้ง');
+          } finally {
+            setSubmitting(false);
+          }
+        },
+      });
+      return;
+    }
+  } catch (error) {
+    console.error('[submitFootballFromChild] Error getting previous answer:', error);
+    // ต่อเนื่องไปยังการบันทึกคำตอบใหม่แม้ว่าจะ check previous answer ไม่ได้
   }
 
-  // ✅ ไม่มีคำตอบเดิม หรือเหมือนเดิม → บันทึกผ่าน PostgreSQL
+  // ✅ ไม่มีคำตอบเดิม หรือเหมือนเดิม → บันทึกผ่าน Firestore
   setSubmitting(true);
   try {
-    await postgresqlAdapter.submitAnswer(id, player, human, false, undefined)
+    await submitAnswer(id, player, { answer: human, correct: false })
+    // ✅ เคลียร์ cache เพื่อให้โหลดคำตอบใหม่ถูกต้องทันที
+    dataCache.delete(`answersIndex:${id}:${player}`);
+    dataCache.delete(`answers:${id}:100`);
     setInitialFootballGuess({ home: h, away: a });
+    setLastFootballGuessText(human);
+    setLastFootballGuessLoaded(true);
     footballGuessShownRef.current = true;
     setModal({
       open: true,
@@ -1524,6 +1767,9 @@ const submitFootballFromChild = async (home: number, away: number) => {
         },
       },
     });
+  } catch (error) {
+    console.error('[submitFootballFromChild] Error submitting answer (new):', error);
+    openInfo('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกสกอร์ได้ กรุณาลองใหม่อีกครั้ง');
   } finally {
     setSubmitting(false);
   }
@@ -1534,12 +1780,20 @@ const submitFootballFromChild = async (home: number, away: number) => {
   if (loading)  return <div className="checkin-wrap checkin-wrap--modern"><div className="checkin-loading">กำลังโหลดเกม…</div></div>
   if (!game)    return <div className="checkin-wrap checkin-wrap--modern"><div className="checkin-loading">ไม่พบเกมนี้</div></div>
 
-  const img = getImageUrl(
-    game.puzzle?.imageDataUrl ||
-    game.numberPick?.imageDataUrl ||
-    game.football?.imageDataUrl ||
+  // Get image URL with debug logging
+  // ✅ รองรับทั้ง nested (gameData.puzzle) และ flat (puzzle) structure
+  const gameData = (game as any).gameData || {}
+  const puzzle = game.puzzle || gameData.puzzle
+  const numberPick = game.numberPick || gameData.numberPick
+  const football = game.football || gameData.football
+  
+  const imageDataUrl = puzzle?.imageDataUrl ||
+    numberPick?.imageDataUrl ||
+    football?.imageDataUrl ||
     ''
-  )
+  
+  // ✅ ตรวจสอบว่า imageDataUrl ไม่ว่างก่อนเรียก getImageUrl
+  const img = imageDataUrl ? getImageUrl(imageDataUrl) : ''
 
   const renderGlobalModal = () => {
     if (!modal.open) return null;
@@ -1552,87 +1806,48 @@ const submitFootballFromChild = async (home: number, away: number) => {
           modalKind === 'codes-empty' ? 'modal--warning' :
           'modal--info'
         }`} onClick={(e)=>e.stopPropagation()} style={{ padding: 0, overflow: 'hidden', borderRadius: 20 }}>
-          {renderModalHeader(modalTitle, modalHeaderTone)}
 
           {modal.kind === 'code' ? (
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, background: modalBodyBackground }}>
-              <div
-                className="code-section"
-                style={{
-                  display: 'grid',
-                  gap: 18,
-                  textAlign: 'center',
-                  color: body.color,
-                  padding: '4px 0',
-                }}
-              >
-                <div
-                  className="success-badge"
-                  role="status"
-                  aria-live="polite"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 10,
-                    padding: '12px 22px',
-                    borderRadius: 999,
-                  fontSize: clampSize(14, 2.8, 18),
-                    fontWeight: 800,
-                  letterSpacing: clampSize(0.2, 0.6, 0.5),
-                    color: accentColor,
-                    background: hexToRgba(accentColor, 0.12),
-                    boxShadow: `0 8px 22px ${hexToRgba(accentColor, 0.22)}`,
-                    textTransform: 'uppercase' as const,
-                  }}
-                >
-                  <span className="spark">✨</span>
-                  <span>นี่โค้ดของคุณค่ะ</span>
-                  <span className="spark">✨</span>
+            <div style={{ padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 20, background: '#fff' }}>
+              <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 60, height: 60, borderRadius: 16,
+                  background: `linear-gradient(135deg, ${hexToRgba(accentColor, 0.1)} 0%, ${hexToRgba(accentColor, 0.2)} 100%)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: `0 4px 14px ${hexToRgba(accentColor, 0.2)}`,
+                }}>
+                  <Gift size={28} color={accentColor} />
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#6b7280' }}>
+                  ยินดีด้วยค่ะ! นี่คือโค้ดของคุณ
                 </div>
                 <div
-                  className="code-box"
                   aria-label="โค้ดของคุณ"
                   style={{
-                    fontSize: clampSize(20, 5, 28),
+                    width: '100%',
+                    fontSize: clampSize(22, 5, 30),
                     fontWeight: 900,
-                    letterSpacing: clampSize(1.5, 1, 2.8),
+                    letterSpacing: clampSize(2, 1, 4),
                     color: accentColor,
-                    background: `linear-gradient(135deg, ${hexToRgba(accentColor, 0.08)} 0%, ${hexToRgba(accentColor, 0.22)} 100%)`,
-                    borderRadius: 18,
-                    padding: '18px 24px',
-                    boxShadow: `0 12px 28px ${hexToRgba(accentColor, 0.28)}`,
-                    // ✅ ลบ textTransform: 'uppercase' เพื่อแสดงโค้ดตามข้อมูลจริง
+                    background: `linear-gradient(135deg, ${hexToRgba(accentColor, 0.06)} 0%, ${hexToRgba(accentColor, 0.14)} 100%)`,
+                    borderRadius: 16,
+                    padding: '20px 24px',
+                    border: `1.5px solid ${hexToRgba(accentColor, 0.2)}`,
                   }}
                 >
                   {modal.code}
                 </div>
-                <div
-                  style={{
-                    ...caption,
-                    color: accentColor,
-                    fontWeight: 600,
-                    marginTop: 2,
-                    opacity: 1,
-                  }}
-                >
-                  คัดลอกโค้ดแล้วนำไปกรอกที่เว็บไซต์เพื่อรับรางวัลนะคะ ✨
+                <div style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 12,
+                  background: '#f8fafc', border: '1px solid #e5e7eb',
+                  fontSize: 12, fontWeight: 500, color: '#9ca3af', textAlign: 'center',
+                }}>
+                  คัดลอกโค้ดแล้วนำไปกรอกที่เว็บไซต์เพื่อรับรางวัลนะคะ
                 </div>
               </div>
 
-              <div
-                className="modal-actions"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12,
-                  width: '100%',
-                  background: modalActionBackground,
-                }}
-              >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <button
-                  className="btn-copy"
-                  style={{ width: '100%', height: 44, fontWeight: 800 }}
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(modal.code || '');
@@ -1640,405 +1855,362 @@ const submitFootballFromChild = async (home: number, away: number) => {
                       setTimeout(() => setCopied(false), 1200);
                     } catch {}
                   }}
+                  style={{
+                    width: '100%', padding: '13px 0',
+                    borderRadius: 14, cursor: 'pointer',
+                    border: `1.5px solid ${hexToRgba(accentColor, 0.25)}`,
+                    background: hexToRgba(accentColor, 0.06),
+                    color: accentColor, fontSize: 15, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'all 0.2s ease',
+                  }}
                 >
-                  <span className="ico">{copied ? '✔︎' : '📋'}</span>
+                  {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
                   {copied ? 'คัดลอกแล้ว' : 'คัดลอกโค้ด'}
                 </button>
 
                 <button
-                  className="btn-cta btn-cta-green"
-                  style={{ 
-                    width: '100%', 
-                    height: 44, 
-                    fontWeight: 800, 
-                    textAlign: 'center', 
-                    display: 'inline-flex', 
-                    justifyContent: 'center', 
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    pointerEvents: 'auto',
-                    zIndex: 9999,
-                    position: 'relative'
-                  }}
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
                     goHeng36()
                   }}
+                  style={{
+                    width: '100%', padding: '14px 0',
+                    borderRadius: 14, border: 'none', cursor: 'pointer',
+                    background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+                    color: '#fff', fontSize: 15, fontWeight: 700,
+                    boxShadow: `0 4px 14px ${hexToRgba(colors.primary, 0.3)}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
                 >
-                  <span className="ico">↗︎</span>
-                  ไปกรอกโค้ด {themeName === 'max56' ? 'MAX56' : 'HENG36'}
+                  <ExternalLink size={16} />
+                  ไปกรอกโค้ด {getThemeDisplayName()}
                 </button>
               </div>
             </div>
           ) : modal.kind === 'saved' ? (
-            <>
-              <div className="saved-wrap saved--center" style={{ textAlign: 'center', padding: '24px', background: modalBodyBackground }}>
-                {/* removed title */}
+            <div style={{ padding: '28px 24px', background: '#fff' }}>
+              <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 60, height: 60, borderRadius: 16,
+                  background: `linear-gradient(135deg, ${hexToRgba(colors.primary, 0.1)} 0%, ${hexToRgba(colors.primary, 0.2)} 100%)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: `0 4px 14px ${hexToRgba(colors.primary, 0.15)}`,
+                }}>
+                  <CheckCircle2 size={28} color={colors.primary} />
+                </div>
+
+                {'extra' in modal && modal.extra?.user && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 16px', borderRadius: 999, background: hexToRgba(colors.primary, 0.08) }}>
+                    <User size={14} color={colors.primary} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: colors.primary }}>{modal.extra.user || username}</span>
+                  </div>
+                )}
+
                 {modal.extra?.football ? (() => {
                   const foot = modal.extra.football;
-                  const homeBg = foot.primaryBg ?? `linear-gradient(135deg, ${hexToRgba(colors.primary, 0.06)} 0%, ${hexToRgba(colors.primary, 0.2)} 100%)`;
-                  const homeShadow = foot.primaryShadow ?? `0 8px 22px ${hexToRgba(colors.primary, 0.25)}`;
-                  const awayBg = foot.dangerBg ?? `linear-gradient(135deg, ${hexToRgba(colors.danger, 0.06)} 0%, ${hexToRgba(colors.danger, 0.2)} 100%)`;
-                  const awayShadow = foot.dangerShadow ?? `0 8px 22px ${hexToRgba(colors.danger, 0.25)}`;
                   return (
-                    <div style={{ marginTop: 4 }}>
-                      <div
-                        style={{
-                          padding: '18px',
-                          borderRadius: 18,
-                          background: `linear-gradient(135deg, ${hexToRgba(colors.primaryLight ?? colors.primary, 0.05)} 0%, ${hexToRgba(colors.primaryLight ?? colors.primary, 0.12)} 100%)`,
-                          border: `1px solid ${hexToRgba(colors.primary ?? '#0ea5e9', 0.25)}`,
-                          boxShadow: '0 10px 30px rgba(15, 23, 42, 0.12)',
-                          display: 'grid',
-                          gap: 16,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 10,
-                            fontWeight: 700,
-                            color: colors.textPrimary ?? '#1f2937',
-                            fontSize: clampSize(13, 2.2, 16),
-                          }}
-                        >
-                          <span aria-hidden style={{ color: colors.primary ?? '#3b82f6' }}>👤</span>
-                          <span>ยูสเซอร์:</span>
-                          <span style={{ color: colors.primary ?? '#3b82f6', fontWeight: 800 }}>{modal.extra.user || username}</span>
+                    <div style={{ width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, margin: '4px 0 16px' }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6 }}>{foot.homeName}</div>
+                          <div style={{
+                            width: 56, height: 56, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 26, fontWeight: 900, color: colors.primary,
+                            background: hexToRgba(colors.primary, 0.08), border: `2px solid ${hexToRgba(colors.primary, 0.2)}`,
+                          }}>{foot.home}</div>
                         </div>
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 24,
-                          }}
-                        >
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                            <div style={{
-                              padding: '6px 12px',
-                              borderRadius: 999,
-                              background: hexToRgba(colors.success ?? colors.primary, 0.25),
-                            color: colors.primaryDark ?? colors.success ?? '#166534',
-                              fontWeight: 800,
-                              letterSpacing: 0.3,
-                            }}>
-                              {foot.homeName}
-                            </div>
-                            <div style={{
-                              width: 56,
-                              height: 56,
-                              borderRadius: 16,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: clampSize(22, 5.8, 30),
-                              fontWeight: 900,
-                              color: colors.primary ?? '#2563eb',
-                              background: homeBg,
-                              boxShadow: homeShadow,
-                            }}>
-                              {foot.home}
-                            </div>
-                          </div>
-
-                          <div style={{ fontSize: clampSize(22, 5, 28), fontWeight: 900, color: hexToRgba(colors.textSecondary ?? '#64748b', 0.7) }}>-</div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                            <div style={{
-                              padding: '6px 12px',
-                              borderRadius: 999,
-                              background: hexToRgba(colors.danger ?? '#ef4444', 0.15),
-                            color: colors.danger ?? '#b91c1c',
-                              fontWeight: 800,
-                              letterSpacing: 0.3,
-                            }}>
-                              {foot.awayName}
-                            </div>
-                            <div style={{
-                              width: 56,
-                              height: 56,
-                              borderRadius: 16,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: clampSize(22, 5.8, 30),
-                              fontWeight: 900,
-                              color: colors.danger ?? '#db2777',
-                              background: awayBg,
-                              boxShadow: awayShadow,
-                            }}>
-                              {foot.away}
-                            </div>
-                          </div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: '#d1d5db' }}>:</div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6 }}>{foot.awayName}</div>
+                          <div style={{
+                            width: 56, height: 56, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 26, fontWeight: 900, color: colors.danger ?? '#ef4444',
+                            background: hexToRgba(colors.danger ?? '#ef4444', 0.08), border: `2px solid ${hexToRgba(colors.danger ?? '#ef4444', 0.2)}`,
+                          }}>{foot.away}</div>
                         </div>
                       </div>
-
-                      {modal.extra?.oldAnswer && modal.extra?.newAnswer ? (
-                        <div style={{ marginTop: 16 }}>
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 16,
-                          }}>
-                            <div style={{
-                              padding: '10px 16px',
-                              borderRadius: 14,
-                              border: `1px solid ${hexToRgba(colors.danger ?? '#ef4444', 0.25)}`,
-                              background: `linear-gradient(135deg, ${hexToRgba(colors.danger ?? '#ef4444', 0.12)} 0%, ${hexToRgba(colors.danger ?? '#ef4444', 0.05)} 100%)`,
-                              minWidth: 140,
-                              textAlign: 'center',
-                              boxShadow: `0 6px 16px ${hexToRgba(colors.danger ?? '#ef4444', 0.18)}`,
-                            }}>
-                              <div style={{ color: colors.danger ?? '#dc2626', fontSize: clampSize(11, 1.6, 13), fontWeight: 700, marginBottom: 4 }}>สกอร์เดิม</div>
-                              <div style={{ color: colors.danger ?? '#991b1b', fontSize: clampSize(13, 2.0, 16), fontWeight: 800 }}>{modal.extra.oldAnswer}</div>
-                            </div>
-                            <div style={{ color: hexToRgba(colors.textSecondary ?? '#64748b', 0.7), fontSize: clampSize(18, 3.8, 24), fontWeight: 800 }}>→</div>
-                            <div style={{
-                              padding: '10px 16px',
-                              borderRadius: 14,
-                              border: `1px solid ${hexToRgba(colors.success ?? '#22c55e', 0.25)}`,
-                              background: `linear-gradient(135deg, ${hexToRgba(colors.success ?? '#22c55e', 0.12)} 0%, ${hexToRgba(colors.success ?? '#22c55e', 0.05)} 100%)`,
-                              minWidth: 140,
-                              textAlign: 'center',
-                              boxShadow: `0 6px 16px ${hexToRgba(colors.success ?? '#22c55e', 0.18)}`,
-                            }}>
-                              <div style={{ color: colors.success ?? '#15803d', fontSize: clampSize(11, 1.6, 13), fontWeight: 700, marginBottom: 4 }}>สกอร์ใหม่</div>
-                              <div style={{ color: colors.success ?? '#16a34a', fontSize: clampSize(13, 2.0, 16), fontWeight: 800 }}>{modal.extra.newAnswer}</div>
-                            </div>
+                      {modal.extra?.oldAnswer && modal.extra?.newAnswer && (
+                        <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, borderRadius: 12, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+                          <div style={{ flex: 1, padding: '10px 14px', background: '#fff', textAlign: 'center' }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>สกอร์เดิม</div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#9ca3af', textDecoration: 'line-through' }}>{modal.extra.oldAnswer}</div>
+                          </div>
+                          <div style={{ width: 1, background: '#e5e7eb' }} />
+                          <div style={{ flex: 1, padding: '10px 14px', background: hexToRgba(colors.primary, 0.04), textAlign: 'center' }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: colors.primary, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>สกอร์ใหม่</div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: colors.primary }}>{modal.extra.newAnswer}</div>
                           </div>
                         </div>
-                      ) : null}
+                      )}
                     </div>
                   );
                 })() : modal.extra?.number ? (() => {
                   const num = modal.extra.number;
-                  const cardBg = num.primaryBg ?? `linear-gradient(135deg, ${hexToRgba(colors.primary, 0.06)} 0%, ${hexToRgba(colors.primary, 0.18)} 100%)`;
-                  const cardShadow = num.primaryShadow ?? `0 10px 30px ${hexToRgba(colors.primary, 0.2)}`;
                   return (
-                    <div style={{ marginTop: 4 }}>
-                      <div
-                        style={{
-                          padding: 18,
-                          borderRadius: 18,
-                          background: `linear-gradient(135deg, ${hexToRgba(colors.primaryLight ?? colors.primary, 0.05)} 0%, ${hexToRgba(colors.primaryLight ?? colors.primary, 0.12)} 100%)`,
-                          border: `1px solid ${hexToRgba(colors.primary ?? '#0ea5e9', 0.25)}`,
-                          boxShadow: '0 10px 30px rgba(15, 23, 42, 0.12)',
-                          display: 'grid',
-                          gap: 16,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 10,
-                            fontWeight: 700,
-                            color: colors.textPrimary ?? '#1f2937',
-                            fontSize: clampSize(13, 2.2, 16),
-                          }}
-                        >
-                          <span aria-hidden style={{ color: colors.primary ?? '#3b82f6' }}>👤</span>
-                          <span>ยูสเซอร์:</span>
-                          <span style={{ color: colors.primary ?? '#3b82f6', fontWeight: 800 }}>{modal.extra.user || username}</span>
-                        </div>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 16,
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <div style={{
-                            padding: '12px 16px',
-                            borderRadius: 14,
-                            background: cardBg,
-                            boxShadow: cardShadow,
-                            minWidth: 160,
-                            textAlign: 'center',
-                          }}>
-                            <div style={{ fontSize: clampSize(12, 1.8, 14), fontWeight: 700, color: colors.textSecondary ?? '#475569' }}>เบอร์เงินที่ทาย</div>
-                            <div style={{ fontSize: clampSize(26, 6.5, 40), fontWeight: 900, marginTop: 8, letterSpacing: clampSize(2, 0.8, 4) }}>{num.value}</div>
-                          </div>
-                          {num.label ? (
-                            <div style={{
-                              padding: '10px 16px',
-                              borderRadius: 14,
-                              background: hexToRgba(colors.bgPrimary ?? '#0f172a', 0.05),
-                              color: colors.textPrimary ?? '#1f2937',
-                              fontWeight: 700,
-                              minWidth: 160,
-                              textAlign: 'center',
-                            }}>
-                              {num.label}
-                            </div>
-                          ) : null}
-                        </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#9ca3af', marginBottom: 8 }}>เบอร์เงินที่ทาย</div>
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '14px 32px', borderRadius: 16,
+                        background: hexToRgba(colors.primary, 0.06), border: `1.5px solid ${hexToRgba(colors.primary, 0.18)}`,
+                      }}>
+                        <span style={{ fontSize: 36, fontWeight: 900, letterSpacing: 8, color: colors.primary }}>{num.value}</span>
                       </div>
+                      {num.label && (
+                        <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: '#6b7280' }}>{num.label}</div>
+                      )}
                     </div>
                   );
                 })() : modal.extra?.actions?.html ? (
                   <div
-                    style={{
-                      ...body,
-                      padding: '0 20px',
-                      textAlign: 'left',
-                      color: body.color,
-                    }}
+                    style={{ fontSize: 14, fontWeight: 500, color: '#4b5563', padding: '0 4px', textAlign: 'left', lineHeight: 1.7 }}
                     dangerouslySetInnerHTML={{ __html: modal.message ?? '' }}
                   />
+                ) : modal.extra?.answer ? (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '12px 22px', borderRadius: 14,
+                    background: hexToRgba(colors.primary, 0.06),
+                    border: `1.5px solid ${hexToRgba(colors.primary, 0.18)}`,
+                    fontSize: 16, fontWeight: 800, color: colors.primary, textAlign: 'center',
+                  }}>
+                    {modal.extra.answer}
+                  </div>
                 ) : modal.message ? (
-                  <p style={{ ...bodyStrong, textAlign: 'center', whiteSpace: 'pre-line', margin: '0 auto' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#374151', whiteSpace: 'pre-line', textAlign: 'center', lineHeight: 1.6 }}>
                     {modal.message}
-                  </p>
+                  </div>
                 ) : null}
+
+                <div style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 12,
+                  background: '#f8fafc', border: '1px solid #e5e7eb',
+                  fontSize: 12, fontWeight: 500, color: '#9ca3af', textAlign: 'center',
+                }}>
+                  กรุณาแคปหน้าจอไว้เป็นหลักฐาน
+                </div>
               </div>
 
-              {'extra' in modal && modal.extra?.actions?.showRetake ? (
-                <div
-                  className="modal-actions"
-                  style={{
-                    display: 'flex',
-                    flexDirection: isNarrowScreen ? 'column' : 'row',
-                    gap: 12,
-                    width: '100%',
-                    padding: '0 24px 24px',
-                    background: modalActionBackground,
-                  }}
-                >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20 }}>
+                {'extra' in modal && modal.extra?.actions?.showRetake && !expired && !runtimeExpired && (
                   <button
-                    className="btn-cta"
-                    style={{ width: isNarrowScreen ? '100%' : undefined, height: 44, fontWeight: 800, borderRadius: 50 }}
-                    onClick={() => {
-                      setModal({ open: false });
-                      modal.extra?.actions?.onRetake?.();
+                    onClick={() => { setModal({ open: false }); modal.extra?.actions?.onRetake?.() }}
+                    style={{
+                      width: '100%', padding: '13px 0',
+                      borderRadius: 14, cursor: 'pointer',
+                      border: '1.5px solid #e5e7eb', background: '#fff',
+                      color: '#6b7280', fontSize: 15, fontWeight: 600,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     }}
                   >
-                    ทายสกอร์ใหม่
+                    ทายใหม่
                   </button>
-                  <button className="btn-cta btn-cta-green btn-wide primary" onClick={goHeng36}>
-                    {goButtonLabel}
-                  </button>
-                </div>
-              ) : (
-                <div className="modal-actions" style={{ padding: '0 24px 24px', background: modalActionBackground }}>
-                  <button className="btn-cta btn-cta-green btn-wide primary" onClick={goHeng36}>
-                    {goButtonLabel}
-                  </button>
-                </div>
-              )}
-            </>
-          ) : modal.kind === 'confirm-replace' ? (
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, background: modalBodyBackground }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ ...headline, fontSize: clampSize(16, 2.3, 20) }}>
-                  {modal.message || 'ต้องการแทนที่คำตอบเดิมหรือไม่?'}
-                </div>
-                <p style={{ ...body, margin: 0 }}>
-                  ระบบจะบันทึกเฉพาะคำตอบล่าสุดไว้ในฐานข้อมูล และใช้ประกาศผลเพียงคำตอบล่าสุดเท่านั้นนะคะ
-                </p>
-              </div>
-              <div style={{ display: 'grid', gap: 12, background: hexToRgba(colors.bgPrimary ?? '#0f172a', 0.05), borderRadius: 16, padding: '16px 18px' }}>
-                <div>
-                  <div style={{ ...caption, marginBottom: 4 }}>{modal.oldLabel}</div>
-                  <div style={{ ...bodyStrong }}>{modal.oldValue}</div>
-                </div>
-                <div>
-                  <div style={{ ...caption, marginBottom: 4 }}>{modal.newLabel}</div>
-                  <div style={{ ...bodyStrong }}>{modal.newValue}</div>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: isNarrowScreen ? '1fr' : '1fr 1fr' }}>
+                )}
                 <button
-                  className="btn-cta btn-cta-light"
-                  style={{ height: 44, fontWeight: 800, borderRadius: 50 }}
-                  onClick={() => setModal({ open: false })}
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  className="btn-cta btn-cta-green btn-wide primary"
-                  onClick={() => {
-                    setModal({ open: false });
-                    modal.onConfirm?.();
+                  onClick={goHeng36}
+                  style={{
+                    width: '100%', padding: '14px 0',
+                    borderRadius: 14, border: 'none', cursor: 'pointer',
+                    background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+                    color: '#fff', fontSize: 15, fontWeight: 700,
+                    boxShadow: `0 4px 14px ${hexToRgba(colors.primary, 0.3)}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   }}
                 >
-                  ยืนยันเปลี่ยนคำตอบ
-                </button>
-              </div>
-            </div>
-          ) : modal.kind === 'codes-empty' ? (
-            <div className="modal-body" style={{ padding: '24px', background: modalBodyBackground }}>
-              <div className="saved-wrap saved--center" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ fontSize: clampSize(28, 6, 42) }}>🎉</div>
-                <div style={{ ...headline }}>โค้ดเต็มแล้วค่ะ</div>
-                <div style={{ ...highlightBox, textAlign: 'center' }}>
-                  ขออภัยด้วยนะคะ โค้ดรางวัลหมดแล้ว
-                </div>
-                <div style={{ ...caption }}>
-                  แอดมินจะรีเซ็ตโค้ดรางวัลในรอบถัดไปนะคะ
-                </div>
-              </div>
-              <div className="modal-actions" style={{ paddingTop: 20 }}>
-                <button className="btn-cta btn-cta-green btn-wide primary" onClick={goHeng36}>
+                  <ExternalLink size={16} />
                   {goButtonLabel}
                 </button>
               </div>
             </div>
-          ) : (
-            <>
-              <div 
-                className="modal-message" 
-                style={{ ...body, whiteSpace:'pre-wrap', padding: '0 24px', textAlign: 'center', background: modalBodyBackground }}
-                dangerouslySetInnerHTML={{ 
-                  __html: (modal.kind === 'info' && 'extra' in modal && modal.extra?.html)
-                    ? modal.message || ''
-                    : ('message' in modal ? modal.message || '' : '').replace(/\n/g, '<br/>') 
+          ) : modal.kind === 'confirm-replace' ? (
+            <div style={{ padding: '28px 24px', background: '#fff' }}>
+              <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 60, height: 60, borderRadius: 16,
+                  background: `linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 14px rgba(245,158,11,0.15)',
+                }}>
+                  <AlertTriangle size={28} color="#f59e0b" />
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#1f2937' }}>
+                  ต้องการเปลี่ยนคำตอบใหม่หรือไม่?
+                </div>
+                <div style={{ width: '100%', display: 'flex', alignItems: 'stretch', gap: 0, borderRadius: 14, overflow: 'hidden', border: '1.5px solid #e5e7eb' }}>
+                  <div style={{ flex: 1, padding: '14px 16px', background: '#fafafa', textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{modal.oldLabel}</div>
+                    <div style={{ fontSize: clampSize(14, 2.2, 17), fontWeight: 800, color: '#9ca3af', textDecoration: 'line-through', textDecorationColor: '#d1d5db' }}>{modal.oldValue}</div>
+                  </div>
+                  <div style={{ width: 1, background: '#e5e7eb', flexShrink: 0 }} />
+                  <div style={{ flex: 1, padding: '14px 16px', background: hexToRgba(colors.primary, 0.04), textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: colors.primary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{modal.newLabel}</div>
+                    <div style={{ fontSize: clampSize(14, 2.2, 17), fontWeight: 800, color: colors.primary }}>{modal.newValue}</div>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                <button
+                  onClick={() => setModal({ open: false })}
+                  style={{
+                    flex: 1, padding: '13px 0',
+                    borderRadius: 14, cursor: 'pointer',
+                    border: '1.5px solid #e5e7eb', background: '#fff',
+                    color: '#6b7280', fontWeight: 600, fontSize: 15,
+                  }}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={() => { setModal({ open: false }); modal.onConfirm?.() }}
+                  style={{
+                    flex: 1, padding: '13px 0',
+                    borderRadius: 14, border: 'none', cursor: 'pointer',
+                    background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+                    color: '#fff', fontWeight: 700, fontSize: 15,
+                    boxShadow: `0 4px 14px ${hexToRgba(colors.primary, 0.3)}`,
+                  }}
+                >
+                  ยืนยัน
+                </button>
+              </div>
+            </div>
+          ) : modal.kind === 'codes-empty' ? (
+            <div style={{ padding: '28px 24px', background: '#fff' }}>
+              <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 60, height: 60, borderRadius: 16,
+                  background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 14px rgba(239,68,68,0.15)',
+                }}>
+                  <XCircle size={30} color="#ef4444" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#1f2937', marginBottom: 6 }}>
+                    โค้ดเต็มแล้วค่ะ
+                  </div>
+                  <div style={{ fontSize: 14, color: '#6b7280', fontWeight: 500, lineHeight: 1.6 }}>
+                    ขออภัยด้วยนะคะ โค้ดรางวัลหมดแล้ว
+                  </div>
+                </div>
+                <div style={{
+                  width: '100%', padding: '10px 16px', borderRadius: 12,
+                  background: '#f8fafc', border: '1px solid #e5e7eb',
+                  fontSize: 12, fontWeight: 500, color: '#9ca3af', textAlign: 'center',
+                }}>
+                  แอดมินจะรีเซ็ตโค้ดรางวัลในรอบถัดไปนะคะ
+                </div>
+              </div>
+              <button
+                onClick={goHeng36}
+                style={{
+                  width: '100%', marginTop: 20, padding: '14px 0',
+                  borderRadius: 14, border: 'none', cursor: 'pointer',
+                  background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+                  color: '#fff', fontSize: 15, fontWeight: 700,
+                  boxShadow: `0 4px 14px ${hexToRgba(colors.primary, 0.3)}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
-              />
-              {modal.kind !== 'info' && (
-                <div className="modal-actions" style={{ padding: '0 24px 24px', background: modalActionBackground }}>
+              >
+                <ExternalLink size={16} />
+                {goButtonLabel}
+              </button>
+            </div>
+          ) : (
+            <div style={{ padding: '28px 24px', background: '#fff' }}>
+              <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                {(() => {
+                  const msg = 'message' in modal ? modal.message || '' : ''
+                  const isWarning = /ไม่พบ|ไม่มี|ไม่ได้|ไม่ถูก|ถูก.*ระงับ|blacklist|เล่น.*แล้ว|ทำการ.*แล้ว/i.test(msg + (modal.title || ''))
+                  const isAlready = /เล่น.*แล้ว|ทำการ.*แล้ว|เคย.*แล้ว/i.test(msg + (modal.title || ''))
+                  const iconBg = isWarning
+                    ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
+                    : `linear-gradient(135deg, ${hexToRgba(colors.primary, 0.08)} 0%, ${hexToRgba(colors.primary, 0.18)} 100%)`
+                  const iconColor = isWarning ? '#f59e0b' : colors.primary
+                  const IconComp = isAlready ? Clock : isWarning ? AlertTriangle : Sparkles
+                  return (
+                    <>
+                      <div style={{
+                        width: 60, height: 60, borderRadius: 16,
+                        background: iconBg,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: `0 4px 14px ${hexToRgba(iconColor, 0.15)}`,
+                      }}>
+                        <IconComp size={30} color={iconColor} />
+                      </div>
+                      {modal.title && (
+                        <div style={{ fontSize: 18, fontWeight: 800, color: '#1f2937' }}>
+                          {modal.title}
+                        </div>
+                      )}
+                      <div 
+                        style={{ fontSize: 14, fontWeight: 500, color: '#6b7280', lineHeight: 1.7, whiteSpace: 'pre-wrap', textAlign: 'center' }}
+                        dangerouslySetInnerHTML={{ 
+                          __html: (modal.kind === 'info' && 'extra' in modal && modal.extra?.html)
+                            ? msg
+                            : msg.replace(/\n/g, '<br/>') 
+                        }}
+                      />
+                    </>
+                  )
+                })()}
+              </div>
+              {'extra' in modal && modal.extra?.showCancel ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 20 }}>
                   <button
-                    className="btn-cta btn-cta-green btn-wide primary"
-                    onClick={() => {
-                      setModal({ open: false });
-                      if (redirectOnOk) {
-                        const dest = redirectOnOk;
-                        setRedirectOnOk(null);
-                        if (dest === 'heng36') goHeng36();
-                      }
+                    onClick={() => setModal({ open: false })}
+                    style={{
+                      padding: '14px 0',
+                      borderRadius: 14, cursor: 'pointer',
+                      background: '#f3f4f6', border: '1px solid #e5e7eb',
+                      color: '#374151', fontSize: 15, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     }}
                   >
+                    <RotateCw size={15} />
+                    ลองใหม่
+                  </button>
+                  <button
+                    onClick={() => {
+                      setModal({ open: false });
+                      if (redirectOnOk) setRedirectOnOk(null);
+                      goHeng36();
+                    }}
+                    style={{
+                      padding: '14px 0',
+                      borderRadius: 14, border: 'none', cursor: 'pointer',
+                      background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+                      color: '#fff', fontSize: 15, fontWeight: 700,
+                      boxShadow: `0 4px 14px ${hexToRgba(colors.primary, 0.3)}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    }}
+                  >
+                    <ExternalLink size={15} />
                     {goButtonLabel}
                   </button>
                 </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setModal({ open: false });
+                    if (redirectOnOk) setRedirectOnOk(null);
+                    goHeng36();
+                  }}
+                  style={{
+                    width: '100%', marginTop: 20, padding: '14px 0',
+                    borderRadius: 14, border: 'none', cursor: 'pointer',
+                    background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+                    color: '#fff', fontSize: 15, fontWeight: 700,
+                    boxShadow: `0 4px 14px ${hexToRgba(colors.primary, 0.3)}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  <ExternalLink size={16} />
+                  {goButtonLabel}
+                </button>
               )}
-            </>
-          )}
-
-          {modal.kind === 'info' && (
-            <div className="modal-actions" style={{ padding: '0 24px 24px', background: modalActionBackground }}>
-              <button
-                className="btn-cta btn-cta-green btn-wide primary"
-                onClick={() => {
-                  setModal({ open: false });
-                  if (redirectOnOk) {
-                    const dest = redirectOnOk;
-                    setRedirectOnOk(null);
-                    if (dest === 'heng36') goHeng36();
-                  }
-                }}
-              >
-                {goButtonLabel}
-              </button>
             </div>
           )}
         </div>
@@ -2048,11 +2220,17 @@ const submitFootballFromChild = async (home: number, away: number) => {
 
   const modalPortal = renderGlobalModal();
 
+  const handleLogout = () => {
+    clearCachedPlayerName()
+    setUsername('')
+    setPassword('')
+    setNeedName(true)
+  }
+
   // สำหรับเกมเช็คอิน ให้แสดงโดยไม่ใช้ play-card
   if (game.type === 'เกมเช็คอิน') {
     return (
-      <div className="checkin-wrap checkin-wrap--modern">
-        <SnowEffect />
+      <div className="checkin-wrap checkin-wrap--modern checkin-wrap--clean">
         {!needName ? (
           <CheckinGame
             gameId={id}
@@ -2060,6 +2238,7 @@ const submitFootballFromChild = async (home: number, away: number) => {
             username={username}
             onInfo={(t,m)=>setModal({ open:true, kind:'info', title:t, message:m })}
             onCode={(code)=>setModal({ open:true, kind:'code', title:'ยินดีด้วย! คำตอบถูกต้อง', message:'นี่โค้ดของคุณค่ะ', code })}
+            onLogout={handleLogout}
           />
         ) : (
           <div className="checkin-loading">กำลังโหลดเกมเช็คอิน...</div>
@@ -2067,71 +2246,101 @@ const submitFootballFromChild = async (home: number, away: number) => {
         
         {/* ✅ Popup : ตั้งชื่อผู้เล่น สำหรับเกมเช็คอิน - ไม่แสดงเมื่อ modal code เปิดอยู่ */}
         {needName && !(modal.open && modal.kind === 'code') && (
-          <Overlay key="checkin-login" onClose={undefined /* ไม่ปิดด้วยคลิกนอก */}>
-            <div className="checkin-login-modal" onClick={(e)=>e.stopPropagation()}>
-              {/* Logo */}
-              <div className="modal-logo">
-                <img src={assets.logoContainer} alt="Logo" />
-              </div>
-              
-              {/* หัวข้อ */}
-              <h2 className="modal-title">เข้าสู่ระบบเกมเช็คอิน</h2>
-              <p className="muted" style={{marginTop:4}}>กรอก USER และ PASSWORD เพื่อเล่นเกมเช็คอิน</p>
-
-              {/* USER */}
-              <input
-                className="f-control"
-                type="text"
-                inputMode="text"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                autoComplete="username"
-                placeholder="USER ของคุณ"
-                value={username}
-                onChange={(e)=>setUsername(e.target.value.toUpperCase())}
-                onKeyDown={(e)=>{
-                  if (e.key==='Enter') {
-                    const pw = document.getElementById('game-pw') as HTMLInputElement | null
-                    pw?.focus()
-                  }
-                }}
-                autoFocus
-              />
-
-              {/* PASSWORD */}
-              <div className="f-pass">
-                <input
-                  id="game-pw"
-                  className="f-control f-lg f-pw"
-                  type={showPw ? 'text' : 'password'}
-                  placeholder="รหัสผ่าน (เลขบัญชี 4 ตัวท้าย)"
-                  value={password}
-                  onChange={(e)=>setPassword(e.target.value)}
-                  onKeyDown={(e)=>{
-                    if (e.key==='Enter') {
-                      saveName()
-                    }
-                  }}
+          <Overlay key="checkin-login" onClose={undefined}>
+            <div onClick={(e)=>e.stopPropagation()} style={{
+              width: '92%', maxWidth: 360, borderRadius: 24, overflow: 'hidden',
+              background: '#fff', boxShadow: '0 25px 60px rgba(0,0,0,0.22)',
+            }}>
+              {/* Hero logo */}
+              <div style={{
+                background: `linear-gradient(160deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+                padding: '32px 40px 28px', textAlign: 'center',
+                position: 'relative', overflow: 'hidden',
+              }}>
+                <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.12) 0%, transparent 60%)' }} />
+                <img
+                  src={assets.logoContainer?.replace(/^url\(["']?/i, '').replace(/["']?\)$/i, '') || '/image/logo.png'}
+                  alt={branding.title || 'Logo'}
+                  onError={(e) => { e.currentTarget.src = assets.logo?.replace(/^url\(["']?/i, '').replace(/["']?\)$/i, '') || '/image/logo.png' }}
+                  style={{ width: '100%', maxHeight: 80, objectFit: 'contain', position: 'relative', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
                 />
+                <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', marginTop: 14, position: 'relative' }}>เข้าสู่ระบบเกมเช็คอิน</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 500, marginTop: 4, position: 'relative' }}>กรอก USER และ PASSWORD</div>
+              </div>
+
+              {/* Form */}
+              <div style={{ padding: '22px 24px 26px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <User size={13} color="#9ca3af" /> USER
+                  </label>
+                  <input
+                    type="text" inputMode="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username"
+                    placeholder="ชื่อผู้ใช้ของคุณ"
+                    value={username}
+                    onChange={(e)=>setUsername(e.target.value.toUpperCase())}
+                    onKeyDown={(e)=>{ if (e.key==='Enter') (document.getElementById('game-pw') as HTMLInputElement)?.focus() }}
+                    autoFocus
+                    style={{
+                      width: '100%', padding: '13px 16px', fontSize: 15, fontWeight: 600,
+                      borderRadius: 14, border: '1.5px solid #e5e7eb', outline: 'none',
+                      background: '#f9fafb', color: '#1f2937', boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Lock size={13} color="#9ca3af" /> PASSWORD
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="game-pw"
+                      type={showPw ? 'text' : 'password'}
+                      placeholder="รหัสผ่าน"
+                      value={password}
+                      onChange={(e)=>setPassword(e.target.value)}
+                      onKeyDown={(e)=>{ if (e.key==='Enter') saveName() }}
+                      style={{
+                        width: '100%', padding: '13px 44px 13px 16px', fontSize: 15, fontWeight: 600,
+                        borderRadius: 14, border: '1.5px solid #e5e7eb', outline: 'none',
+                        background: '#f9fafb', color: '#1f2937', boxSizing: 'border-box',
+                      }}
+                    />
+                    <button
+                      type="button" tabIndex={-1}
+                      onClick={()=>setShowPw(!showPw)}
+                      style={{
+                        position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+                        color: '#9ca3af', display: 'flex', alignItems: 'center',
+                      }}
+                    >
+                      {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <AlertTriangle size={11} color="#d97706" /> PASSWORD คือเลขบัญชี 4 ตัวท้าย
+                  </div>
+                </div>
+
                 <button
-                  type="button"
-                  className="f-toggle"
-                  onClick={()=>setShowPw(!showPw)}
-                  tabIndex={-1}
+                  onClick={saveName}
+                  disabled={checkingName || !username.trim() || !password.trim()}
+                  style={{
+                    width: '100%', padding: '14px 0', marginTop: 4,
+                    borderRadius: 14, border: 'none', cursor: checkingName || !username.trim() || !password.trim() ? 'not-allowed' : 'pointer',
+                    background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+                    color: '#fff', fontSize: 16, fontWeight: 800,
+                    boxShadow: `0 4px 14px ${hexToRgba(colors.primary, 0.3)}`,
+                    opacity: checkingName || !username.trim() || !password.trim() ? 0.5 : 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'opacity 0.2s',
+                  }}
                 >
-                  {showPw ? '🙈' : '👁️'}
+                  {checkingName ? <><Loader2 size={16} className="spin-icon" /> กำลังตรวจสอบ...</> : <><Lock size={16} /> เข้าสู่ระบบ</>}
                 </button>
               </div>
-
-              {/* ปุ่มยืนยัน */}
-              <button
-                className="f-btn primary"
-                onClick={saveName}
-                disabled={checkingName || !username.trim() || !password.trim()}
-              >
-                {checkingName ? 'กำลังตรวจสอบ...' : 'ยืนยัน'}
-              </button>
             </div>
           </Overlay>
         )}
@@ -2142,10 +2351,84 @@ const submitFootballFromChild = async (home: number, away: number) => {
   }
 
   return (
-    <section className="play-wrap bg-game">
-      <SnowEffect />
+    <section className="play-wrap play-wrap--clean">
       <div className="play-card">
-        <img src={assets.logoContainer} alt={branding.title} className="play-logo" />
+        {/* Logo + Logout (for games with built-in UserBar) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ flex: 1 }} />
+          <img 
+            src={assets.logoContainer?.replace(/^url\(["']?/i, '').replace(/["']?\)$/i, '') || '/image/logo.png'} 
+            alt={branding.title} 
+            className="play-logo" 
+            style={{ margin: '6px auto 8px' }}
+            onError={(e) => {
+              const fallbackLogo = assets.logo?.replace(/^url\(["']?/i, '').replace(/["']?\)$/i, '') || '/image/logo.png'
+              e.currentTarget.src = fallbackLogo
+            }}
+          />
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+            {!needName && username && ['เกมสล็อต'].includes(game.type) && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="ออกจากระบบ"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '6px 12px', borderRadius: 8,
+                  border: `1px solid ${colors.borderLight || '#e5e7eb'}`,
+                  background: 'transparent', color: colors.textSecondary || '#9ca3af',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  transition: 'all 0.15s ease', whiteSpace: 'nowrap',
+                }}
+              >
+                <LogOut size={13} />
+                ออก
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* User tab + Logout */}
+        {!needName && username && !['เกมสล็อต', 'เกมเช็คอิน'].includes(game.type) && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: `linear-gradient(135deg, ${colors.primary || '#10B981'} 0%, ${colors.secondary || '#059669'} 100%)`,
+            borderRadius: 12, padding: '10px 16px', marginBottom: 10,
+            boxShadow: `0 4px 14px ${hexToRgba(colors.primary || '#10B981', 0.3)}`,
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <User size={16} color="#fff" />
+            </div>
+            <span style={{
+              color: '#fff', fontWeight: 700, fontSize: 14,
+              textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              flex: 1, minWidth: 0,
+            }}>
+              {username}
+            </span>
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="ออกจากระบบ"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                marginLeft: 'auto', flexShrink: 0,
+                background: 'rgba(255,255,255,0.18)', borderRadius: 8,
+                padding: '5px 12px', border: '1px solid rgba(255,255,255,0.25)',
+                color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                transition: 'all 0.15s ease', whiteSpace: 'nowrap',
+              }}
+            >
+              <LogOut size={12} />
+              ออก
+            </button>
+          </div>
+        )}
 
         <div className="play-head">
           {(() => {
@@ -2169,7 +2452,7 @@ const submitFootballFromChild = async (home: number, away: number) => {
           />
         )}
 
-        {game.type === 'เกมทายภาพปริศนา' && !needName && (
+        {(game.type === 'เกมทายภาพปริศนา' || game.type === 'เกมปาร์ตี้') && !needName && (
           <PuzzleGame
             gameId={id}
             game={game as any} 
@@ -2182,33 +2465,63 @@ const submitFootballFromChild = async (home: number, away: number) => {
         {game.type === 'เกมทายเบอร์เงิน' && !needName && (
           <NumberGame
             image={img}
-            endAtMs={game.numberPick?.endAt ?? null}
+            endAtMs={(game.numberPick || (game as any).gameData?.numberPick)?.endAt ?? null}
             onExpire={handleExpire}
             disabled={runtimeExpired || locked || submitting}
             submitting={submitting}
             onSubmit={submitNumberAnswer}
+            previousGuess={lastNumberGuess ? (parseNumberGuess(lastNumberGuess) || lastNumberGuess) : undefined}
+            onGoToWebsite={goHeng36}
+            goButtonLabel={goButtonLabel}
           />
         )}
 
         {game.type === 'เกมทายผลบอล' && !needName && (
           <FootballGame
-            image={getImageUrl(game.football?.imageDataUrl || '')}
-            endAtMs={game.football?.endAt ?? null}
+            image={(() => {
+              const footballData = game.football || (game as any).gameData?.football
+              const imgUrl = footballData?.imageDataUrl
+              return imgUrl ? getImageUrl(imgUrl) : ''
+            })()}
+            endAtMs={(game.football || (game as any).gameData?.football)?.endAt ?? null}
             onExpire={handleExpire}
-            homeName={game.football?.homeTeam || 'ทีมเหย้า'}
-            awayName={game.football?.awayTeam || 'ทีมเยือน'}
+            homeName={(game.football || (game as any).gameData?.football)?.homeTeam || 'ทีมเหย้า'}
+            awayName={(game.football || (game as any).gameData?.football)?.awayTeam || 'ทีมเยือน'}
             disabled={expired || runtimeExpired || locked}
             submitting={submitting}
             onSubmit={submitFootballFromChild}
-            initialGuess={initialFootballGuess}
-            onShowGuess={handleFootballGuessShown}
+            previousGuess={initialFootballGuess}
+            previousGuessText={lastFootballGuessText}
+            onGoToWebsite={goHeng36}
+            goButtonLabel={goButtonLabel}
           />
         )}
 
-        {game.type === 'เกม Trick or Treat' && !needName && (
+        {game.type === 'เกมบอลโลก' && !needName && (
+          <WorldCupGame
+            gameId={id}
+            game={game as any}
+            username={username}
+            onInfo={openInfo}
+            onGoToWebsite={goHeng36}
+            goButtonLabel={goButtonLabel}
+          />
+        )}
+
+        {game.type === 'เกมลุ้นรางวัลพิเศษ' && !needName && (
           <TrickOrTreatGame
             gameId={id}
             game={game as any} 
+            username={username}
+            onInfo={openInfo}
+            onCode={openCode}
+          />
+        )}
+
+        {game.type === 'เกมป๊อกเด้ง' && !needName && (
+          <PokDengGame
+            gameId={id}
+            game={game as any}
             username={username}
             onInfo={openInfo}
             onCode={openCode}
@@ -2235,17 +2548,13 @@ const submitFootballFromChild = async (home: number, away: number) => {
           />
         )}
 
-        {game.type === 'เกม BINGO' && !needName && (
-          <BingoGame
+        {game.type === 'เกมแนะนำเพื่อน' && !needName && (
+          <ReferralGame
             gameId={id}
-            game={game}
+            gameData={game}
             username={username}
-            onInfo={openInfo}
-            onCode={openCode}
-            isHost={isHost}
           />
         )}
-
 
         {locked  && <div className="banner warn">เกมนี้ยัง <b>ล็อกอยู่</b> โปรดติดต่อแอดมิน</div>}
         {(expired || runtimeExpired) && <div className="banner warn">เกมนี้ <b>หมดเวลา</b> แล้ว</div>}
@@ -2253,91 +2562,103 @@ const submitFootballFromChild = async (home: number, away: number) => {
 
       {/* ✅ Popup : ตั้งชื่อผู้เล่น - ไม่แสดงเมื่อ modal code เปิดอยู่ */}
       {needName && !(modal.open && modal.kind === 'code') && (
-        <Overlay key="game-login" onClose={undefined /* ไม่ปิดด้วยคลิกนอก */}>
-          <div className="checkin-login-modal" onClick={(e)=>e.stopPropagation()}>
-            {/* Logo */}
-            <div className="modal-logo">
-              <img src={assets.logoContainer} alt="Logo" />
-            </div>
-            
-            {/* หัวข้อ */}
-            <h2 className="modal-title">
-              {(game?.type as string) === 'เกมสล็อต' && 'เข้าสู่ระบบเกมสล็อต'}
-              {(game?.type as string) === 'เกมทายภาพปริศนา' && 'เข้าสู่ระบบเกมทายภาพปริศนา'}
-              {(game?.type as string) === 'เกมทายเบอร์เงิน' && 'เข้าสู่ระบบเกมทายเบอร์เงิน'}
-              {(game?.type as string) === 'เกมทายผลบอล' && 'เข้าสู่ระบบเกมทายผลบอล'}
-              {(game?.type as string) === 'เกม Trick or Treat' && 'เข้าสู่ระบบเกม Trick or Treat'}
-              {(game?.type as string) === 'เกมลอยกระทง' && 'เข้าสู่ระบบเกมลอยกระทง'}
-              {(game?.type as string) === 'เกม BINGO' && 'เข้าสู่ระบบเกม BINGO'}
-              {(game?.type as string) === 'เกมเช็คอิน' && 'เข้าสู่ระบบเกมเช็คอิน'}
-              {!['เกมสล็อต', 'เกมทายภาพปริศนา', 'เกมทายเบอร์เงิน', 'เกมทายผลบอล', 'เกม Trick or Treat', 'เกมลอยกระทง', 'เกม BINGO', 'เกมเช็คอิน'].includes((game?.type as string) || '') && 'เข้าสู่ระบบเกม'}
-            </h2>
-            <p className="muted" style={{marginTop:4}}>
-              {(game?.type as string) === 'เกมสล็อต' && 'กรอก USER และ PASSWORD เพื่อเล่นเกมสล็อต'}
-              {(game?.type as string) === 'เกมทายภาพปริศนา' && 'กรอก USER และ PASSWORD เพื่อเล่นเกมทายภาพปริศนา'}
-              {(game?.type as string) === 'เกมทายเบอร์เงิน' && 'กรอก USER และ PASSWORD เพื่อเล่นเกมทายเบอร์เงิน'}
-              {(game?.type as string) === 'เกมทายผลบอล' && 'กรอก USER และ PASSWORD เพื่อเล่นเกมทายผลบอล'}
-              {(game?.type as string) === 'เกม Trick or Treat' && 'กรอก USER และ PASSWORD เพื่อเล่นเกม Trick or Treat'}
-              {(game?.type as string) === 'เกมลอยกระทง' && 'กรอก USER และ PASSWORD เพื่อเล่นเกมลอยกระทง'}
-              {(game?.type as string) === 'เกม BINGO' && 'กรอก USER และ PASSWORD เพื่อเล่นเกม BINGO'}
-              {(game?.type as string) === 'เกมเช็คอิน' && 'กรอก USER และ PASSWORD เพื่อเล่นเกมเช็คอิน'}
-              {!['เกมสล็อต', 'เกมทายภาพปริศนา', 'เกมทายเบอร์เงิน', 'เกมทายผลบอล', 'เกม Trick or Treat', 'เกมลอยกระทง', 'เกม BINGO', 'เกมเช็คอิน'].includes((game?.type as string) || '') && 'กรอก USER และ PASSWORD'}
-            </p>
-
-            {/* USER */}
-            <input
-              className="f-control"
-              type="text"
-              inputMode="text"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              autoComplete="username"
-              placeholder="USER ของคุณ"
-              value={username}
-              onChange={(e)=>setUsername(e.target.value.toUpperCase())}
-              onKeyDown={(e)=>{
-                if (e.key==='Enter') {
-                  const pw = document.getElementById('game-pw') as HTMLInputElement | null
-                  pw?.focus()
-                }
-              }}
-              autoFocus
-            />
-
-            {/* PASSWORD */}
-            <div className="f-pass">
-              <input
-                id="game-pw"
-                className="f-control f-lg f-pw"
-                type={showPw ? 'text' : 'password'}
-                placeholder="รหัสผ่าน (เลขบัญชี 4 ตัวท้าย)"
-                value={password}
-                onChange={(e)=>setPassword(e.target.value)}
-                onKeyDown={(e)=>{
-                  if (e.key==='Enter') {
-                    saveName()
-                  }
-                }}
+        <Overlay key="game-login" onClose={undefined}>
+          <div onClick={(e)=>e.stopPropagation()} style={{
+            width: '92%', maxWidth: 360, borderRadius: 24, overflow: 'hidden',
+            background: '#fff', boxShadow: '0 25px 60px rgba(0,0,0,0.22)',
+          }}>
+            {/* Hero logo */}
+            <div style={{
+              background: `linear-gradient(160deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+              padding: '32px 40px 28px', textAlign: 'center',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.12) 0%, transparent 60%)' }} />
+              <img
+                src={assets.logoContainer?.replace(/^url\(["']?/i, '').replace(/["']?\)$/i, '') || '/image/logo.png'}
+                alt={branding.title || 'Logo'}
+                onError={(e) => { e.currentTarget.src = assets.logo?.replace(/^url\(["']?/i, '').replace(/["']?\)$/i, '') || '/image/logo.png' }}
+                style={{ width: '100%', maxHeight: 80, objectFit: 'contain', position: 'relative', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
               />
+              <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', marginTop: 14, position: 'relative' }}>
+                เข้าสู่ระบบ{game?.type || 'เกม'}
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 500, marginTop: 4, position: 'relative' }}>กรอก USER และ PASSWORD</div>
+            </div>
+
+            {/* Form */}
+            <div style={{ padding: '22px 24px 26px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <User size={13} color="#9ca3af" /> USER
+                </label>
+                <input
+                  type="text" inputMode="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username"
+                  placeholder="ชื่อผู้ใช้ของคุณ"
+                  value={username}
+                  onChange={(e)=>setUsername(e.target.value.toUpperCase())}
+                  onKeyDown={(e)=>{ if (e.key==='Enter') (document.getElementById('game-pw') as HTMLInputElement)?.focus() }}
+                  autoFocus
+                  style={{
+                    width: '100%', padding: '13px 16px', fontSize: 15, fontWeight: 600,
+                    borderRadius: 14, border: '1.5px solid #e5e7eb', outline: 'none',
+                    background: '#f9fafb', color: '#1f2937', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Lock size={13} color="#9ca3af" /> PASSWORD
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="game-pw"
+                    type={showPw ? 'text' : 'password'}
+                    placeholder="รหัสผ่าน"
+                    value={password}
+                    onChange={(e)=>setPassword(e.target.value)}
+                    onKeyDown={(e)=>{ if (e.key==='Enter') saveName() }}
+                    style={{
+                      width: '100%', padding: '13px 44px 13px 16px', fontSize: 15, fontWeight: 600,
+                      borderRadius: 14, border: '1.5px solid #e5e7eb', outline: 'none',
+                      background: '#f9fafb', color: '#1f2937', boxSizing: 'border-box',
+                    }}
+                  />
+                  <button
+                    type="button" tabIndex={-1}
+                    onClick={()=>setShowPw(!showPw)}
+                    style={{
+                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+                      color: '#9ca3af', display: 'flex', alignItems: 'center',
+                    }}
+                  >
+                    {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <AlertTriangle size={11} color="#d97706" /> PASSWORD คือเลขบัญชี 4 ตัวท้าย
+                </div>
+              </div>
+
               <button
-                type="button"
-                className="f-toggle"
-                onClick={()=>setShowPw(!showPw)}
-                tabIndex={-1}
+                onClick={saveName}
+                disabled={checkingName || !username.trim() || !password.trim()}
+                style={{
+                  width: '100%', padding: '14px 0', marginTop: 4,
+                  borderRadius: 14, border: 'none', cursor: checkingName || !username.trim() || !password.trim() ? 'not-allowed' : 'pointer',
+                  background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary || colors.primary} 100%)`,
+                  color: '#fff', fontSize: 16, fontWeight: 800,
+                  boxShadow: `0 4px 14px ${hexToRgba(colors.primary, 0.3)}`,
+                  opacity: checkingName || !username.trim() || !password.trim() ? 0.5 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'opacity 0.2s',
+                }}
               >
-                {showPw ? '🙈' : '👁️'}
+                {checkingName ? <><Loader2 size={16} className="spin-icon" /> กำลังตรวจสอบ...</> : <><Lock size={16} /> เข้าสู่ระบบ</>}
               </button>
             </div>
-
-            {/* ปุ่มยืนยัน */}
-            <button
-              className="f-btn primary"
-              onClick={saveName}
-              disabled={checkingName || !username.trim() || !password.trim()}
-            >
-              {checkingName ? 'กำลังตรวจสอบ...' : 'ยืนยัน'}
-            </button>
           </div>
         </Overlay>
       )}
@@ -2362,7 +2683,7 @@ const submitFootballFromChild = async (home: number, away: number) => {
                   boxShadow: `0 8px 32px ${colors.danger}40`,
                   animation: 'pulse 2s infinite'
                 }}>
-                  <span style={{ fontSize: '32px' }}>🎉</span>
+                  <span style={{ fontSize: '32px' }}><PartyPopper size={32} /></span>
                 </div>
                 <h3 style={{
                   fontSize: '24px',
@@ -2422,9 +2743,9 @@ const submitFootballFromChild = async (home: number, away: number) => {
                     justifyContent: 'center',
                     gap: '8px'
                   }}>
-                    <span>🎮</span>
+                    <span><Gamepad2 size={16} /></span>
                     <span>รอติดตามกิจกรรมรอบหน้าค่ะ!</span>
-                    <span>🎮</span>
+                    <span><Gamepad2 size={16} /></span>
                   </div>
                 </div>
               </div>
